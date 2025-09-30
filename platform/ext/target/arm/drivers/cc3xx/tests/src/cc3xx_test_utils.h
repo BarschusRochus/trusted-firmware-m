@@ -39,20 +39,19 @@ static inline uint32_t pmod(int32_t num, int32_t N)
 
 static inline void enable_cycle_counter(void)
 {
-    DCB->DEMCR |= DCB_DEMCR_TRCENA_Msk;
-    /* DWT->LAR = 0xC5ACCE55; */
-    DWT->CYCCNT = 0;
-    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    SysTick->VAL  = 0;
+    SysTick->LOAD = SysTick_LOAD_RELOAD_Msk;
+    SysTick->CTRL = SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk;
 }
 
 static inline uint32_t get_cycle_count(void)
 {
-    return DWT->CYCCNT;
+    return SysTick_LOAD_RELOAD_Msk - SysTick->VAL;
 }
 
 static inline uint32_t reset_cycle_count(void)
 {
-    DWT->CYCCNT = 0;
+    SysTick->CTRL = 0;
 }
 
 #ifdef __cplusplus
