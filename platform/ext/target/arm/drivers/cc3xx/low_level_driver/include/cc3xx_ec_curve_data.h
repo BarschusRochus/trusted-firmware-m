@@ -40,6 +40,8 @@ extern "C" {
   ||  defined(CC3XX_CONFIG_EC_CURVE_SECP_192_K1_ENABLE) \
   ||  defined(CC3XX_CONFIG_EC_CURVE_BRAINPOOLP_192_R1_ENABLE)
 #define CC3XX_EC_MAX_POINT_SIZE 24
+#elif defined(CC3XX_CONFIG_EC_CURVE_ED25519_ENABLE)
+#define CC3XX_EC_MAX_POINT_SIZE 32
 #else
 #define CC3XX_EC_MAX_POINT_SIZE 0
 #endif
@@ -59,7 +61,8 @@ extern "C" {
    || defined(CC3XX_CONFIG_EC_CURVE_BRAINPOOLP_320_R1_ENABLE) \
    || defined(CC3XX_CONFIG_EC_CURVE_BRAINPOOLP_384_R1_ENABLE) \
    || defined(CC3XX_CONFIG_EC_CURVE_BRAINPOOLP_512_R1_ENABLE) \
-   || defined(CC3XX_CONFIG_EC_CURVE_FRP_256_V1_ENABLE)
+   || defined(CC3XX_CONFIG_EC_CURVE_FRP_256_V1_ENABLE) \
+   || defined(CC3XX_CONFIG_EC_CURVE_ED25519_ENABLE)
 #define CC3XX_EC_MAX_BARRETT_TAG_SIZE 12
 #else
 #define CC3XX_EC_MAX_BARRETT_TAG_SIZE 0
@@ -78,9 +81,13 @@ typedef struct {
 
     uint32_t field_modulus[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
     uint32_t barrett_tag[CC3XX_EC_MAX_BARRETT_TAG_SIZE / sizeof(uint32_t)];
-
+    
+    //aren't those curve parameters for weierstrass curves?
     uint32_t field_param_a[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
     uint32_t field_param_b[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
+    
+    //twisted edwards curve parameters
+    uint32_t field_param_d[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
 
     uint32_t generator_x[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
     uint32_t generator_y[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];

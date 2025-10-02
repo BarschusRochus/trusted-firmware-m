@@ -511,8 +511,41 @@ cc3xx_ec_curve_data_t curve_448 = {
 #endif
 
 #ifdef CC3XX_CONFIG_EC_CURVE_ED25519_ENABLE
+/*EC twisted Edwards curve over GF(p): ax^2+y^2 = 1 + dx^2y^2  
+    with a = -1, which is not defined in parameters.
+    The parameter a is what differentiates Edwards and twisted Edwards.
+    Hence, to actually support twisted Edwards curves that one needs to
+    be considered. Also changes extended coordinate representation
+    and calculations. 
+    This might explain things: https://eprint.iacr.org/2008/522.pdf 
+    
+    See https://datatracker.ietf.org/doc/html/rfc7748#section-4.1
+    for curve parameters.*/
 cc3xx_ec_curve_data_t ed25519 = {
+
     .type = CC3XX_EC_CURVE_TYPE_TWISTED_EDWARDS,
+    .register_size = 32,
+    .field_modulus = {0xffffffed,0xffffffff,0xffffffff,0xffffffff,
+                      0xffffffff,0xffffffff,0xffffffff,0x7fffffff},
+    .modulus_size = 32,
+    //obtained from cc312_runtime, verified with calc_Np() function
+    .barrett_tag = {0x00000000,0x00000000,0x00000080},
+    //why is that not a thing?
+    //.barret_tag_group_order = {0xFFFFFFFF,0xFFFFFFFF,0x000000FF},
+    .barrett_tag_size = 12,
+    //a,b not relevant for (twisted) edwards
+    .field_param_a = {0x0},
+    .field_param_b = {0x0},
+    .field_param_d = {0x135978A3,0x75EB4DCA,0x4141D8AB,0x00700A4D,
+                      0x7779E898,0x8CC74079,0x2B6FFE73,0x52036CEE},
+
+    .generator_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,
+                    0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .generator_y = {0x66666658,0x66666666,0x66666666,0x66666666,
+                    0x66666666,0x66666666,0x66666666,0x66666666},
+    .order = {0x5cf5d3ed,0x5812631a,0xa2f79cd6,0x14def9de,
+              0x00000000,0x00000000,0x00000000,0x10000000},
+    .cofactor = 8
 };
 #endif
 
