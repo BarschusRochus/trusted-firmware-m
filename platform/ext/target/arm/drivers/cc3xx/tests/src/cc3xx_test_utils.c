@@ -7,6 +7,7 @@
 
 
 #include "cc3xx_test_utils.h"
+#include <string.h>
 
 #include <assert.h>
 
