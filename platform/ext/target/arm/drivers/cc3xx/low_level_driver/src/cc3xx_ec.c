@@ -257,9 +257,17 @@ cc3xx_err_t cc3xx_lowlevel_ec_init(cc3xx_ec_curve_id_t id,
     cc3xx_lowlevel_pka_init(curve_data->register_size);
 
     curve->field_modulus = cc3xx_lowlevel_pka_allocate_reg();
-    curve->param_a = cc3xx_lowlevel_pka_allocate_reg();
-    curve->param_b = cc3xx_lowlevel_pka_allocate_reg();
     curve->order = cc3xx_lowlevel_pka_allocate_reg();
+    #ifndef CC3XX_CONFIG_EC_CURVE_ED25519_ENABLE
+        curve->param_a = cc3xx_lowlevel_pka_allocate_reg();
+        curve->param_b = cc3xx_lowlevel_pka_allocate_reg();
+    #endif
+
+    #ifdef CC3XX_CONFIG_EC_CURVE_ED25519_ENABLE
+        curve->param_d = cc3xx_lowlevel_pka_allocate_reg();
+        curve->q58 = cc3xx_lowlevel_pka_allocate_reg();
+        curve->sqrt_m1 = cc3xx_lowlevel_pka_allocate_reg();
+    #endif
 
     barrett_tag = cc3xx_lowlevel_pka_allocate_reg();
 
@@ -268,13 +276,24 @@ cc3xx_err_t cc3xx_lowlevel_ec_init(cc3xx_ec_curve_id_t id,
 
     cc3xx_lowlevel_pka_write_reg(barrett_tag, curve_data->barrett_tag,
                                  curve_data->barrett_tag_size);
-
+    #ifndef CC3XX_CONFIG_EC_CURVE_ED25519_ENABLE
     cc3xx_lowlevel_pka_write_reg(curve->param_a, curve_data->field_param_a,
                                  curve_data->modulus_size);
 
     cc3xx_lowlevel_pka_write_reg(curve->param_b, curve_data->field_param_b,
                                  curve_data->modulus_size);
-
+    #endif
+    #ifdef CC3XX_CONFIG_EC_CURVE_ED25519_ENABLE
+        cc3xx_lowlevel_pka_write_reg(curve->param_d, curve_data->field_param_d,
+                            curve_data->modulus_size);
+        cc3xx_lowlevel_pka_write_reg(curve->q58, curve_data->q58,
+                            curve_data->modulus_size);
+        cc3xx_lowlevel_pka_write_reg(curve->sqrt_m1, curve_data->sqrt_m1,
+                            curve_data->modulus_size);
+    #endif
+    cc3xx_lowlevel_pka_write_reg(curve->order, curve_data->order,
+                                 curve_data->modulus_size);
+    
     cc3xx_lowlevel_pka_write_reg(curve->order, curve_data->order,
                                  curve_data->modulus_size);
 

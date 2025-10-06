@@ -6,7 +6,8 @@
 //debug
 #include <stdio.h>
 
-void print_debug(uint32_t *debug, size_t len){
+void print_debug(char* msg, uint32_t *debug, size_t len){
+    printf("%s",msg);
     for(size_t i=0; i < len; i++){
         printf("%08lx ", debug[i]);
     }
@@ -22,7 +23,9 @@ void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t i
 
         uint32_t  bit0; //used to read values from regs. 
 
-        uint32_t debug[16] = {0};
+        uint32_t debug[8] = {0};
+        size_t debug_len = 32;
+        size_t debug_bytes = 8;
 
         cc3xx_pka_reg_id_t reg_x = decompressed_pt->x;
         cc3xx_pka_reg_id_t t = cc3xx_lowlevel_pka_allocate_reg();
@@ -34,9 +37,9 @@ void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t i
         //setzt N auf 2^255-19
         cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
 
-        cc3xx_lowlevel_pka_mod_mul(reg_y, reg_y, t3); //res = (r0 * r1) mod N.        //y^2 ohne reduce gibt im zweifel ein 64 byte resultat //<---------hier kommt nur die haelfte raus
-        cc3xx_lowlevel_pka_read_reg(t3, debug, sizeof(debug));
-        print_debug(debug, sizeof(debug));
+        cc3xx_lowlevel_pka_mod_mul(reg_y, reg_y, t3); //res = (r0 * r1) mod N.        //y^2 ohne reduce gibt im zweifel ein 64 byte resultat 
+        cc3xx_lowlevel_pka_read_reg(t3, debug, debug_len);
+        print_debug("t3: ",debug, debug_bytes);
         //PKA_MOD_MUL_NFR(LEN_ID_N_BITS, EDW_REG_T3, rY, rY);                 // hwmmul(t3, y, y, n, np);  //t3 = y^2 mod n?
         cc3xx_lowlevel_pka_mod_mul(t3, curve->param_d, t4);                                                                             
         //PKA_MOD_MUL_NFR(LEN_ID_N_BITS, EDW_REG_T4, EDW_REG_T3, EDW_REG_D);  // hwmmul(t4, t3, ec_d, n, np); //t4 = y^2*d mod n
@@ -59,7 +62,7 @@ void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t i
 
         //selbes spiel wie mit d -> q58 bei init vordefinieren oder hier ad hoc setzen
         //geht ohne mod? muss ohne mod?
-        cc3xx_lowlevel_pka_mod_exp(t5, curve->q58, reg_x); // x = (u*v^7)^((p-5)/8)
+        cc3xx_lowlevel_pka_mod_exp(t5, curve->q58, reg_x); // x = (u*v^7)^((p-5)/8) //<---------da putt
         //PKA_MOD_EXP(LEN_ID_N_BITS, rX, EDW_REG_T5, EDW_REG_Q58);            // hwmexp(x, t5, q58, n, np); // x = t5^reg_q58 // Wurzel ziehen in Magic? q58 = = (P - 5)/8 // ja, genau
         cc3xx_lowlevel_pka_mod_mul(t3, reg_x, reg_x); //x = (u*v^7)^((p-5)/8) * u
         //PKA_MOD_MUL_NFR(LEN_ID_N_BITS, rX, rX, EDW_REG_T3);                 // hwmmul(x, x, t3, n, np); // x = x * t3 = 

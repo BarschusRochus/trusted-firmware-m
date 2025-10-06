@@ -88,6 +88,8 @@ typedef struct {
     
     //twisted edwards curve parameters
     uint32_t field_param_d[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
+    uint32_t q58[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
+    uint32_t sqrt_m1[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
 
     uint32_t generator_x[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
     uint32_t generator_y[CC3XX_EC_MAX_POINT_SIZE / sizeof(uint32_t)];
