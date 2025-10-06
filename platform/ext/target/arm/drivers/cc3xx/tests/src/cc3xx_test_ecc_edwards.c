@@ -40,10 +40,55 @@ cc3xx_ec_edw_point_decompress_test_data_t point_decompress_test_data =  {
     //0x6666666666666666666666666666666666666666666666666666666666666658
 };
 
+cc3xx_ec_edw_point_decompress_test_data_t point_decompress_even_x =  {
+    //20 * G
+    //x = 2881497726695270817942794798415593723869412755579932118274853290461596939604 = 0x65edeb2e91679e3b7a3462f4ed69a10e5cefb6c9df3060a783c2e46c87ef554
+    //y = 66682434791421033565046163356062778647931430315683045604900126837924823849528 = 0x936cebacb6260a9d5e6a3e3171c535f0be71cfbe16a960b9dd317bda6f3c5a38
+    //when interpreted as little endian the hex number startis with 0x6 -> 0b0110 -> most significant bit is 0 -> matches lsb of expected x (0xA -> 0b10)
+    .y = {0x6f3c5a38,0xdd317bda,0x16a960b9,0xbe71cfbe,0x71c535f0,0x5e6a3e31,0xb6260a9d,0x936cebac},
+    .expected_odd_x = 0b00000000,
+    .expected_x = {0xc87ef554,0x783c2e46,0x9df3060a,0xe5cefb6c,0x4ed69a10,0xb7a3462f,0xe91679e3,0x65edeb2},
+    .expected_y = {0x6f3c5a38,0xdd317bda,0x16a960b9,0xbe71cfbe,0x71c535f0,0x5e6a3e31,0xb6260a9d,0x936cebac}
+    //0x6666666666666666666666666666666666666666666666666666666666666658
+};
+
+/*
+cc3xx_ec_edw_point_decompress_test_data_t point_decompress_odd_x =  {
+    //Find a odd x coordinate when you find one...
+    //generator point as simple test
+    //when interpreted as little endian the hex number startis with 0x6 -> 0b0110 -> most significant bit is 0 -> matches lsb of expected x (0xA -> 0b10)
+    .y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .expected_odd_x = 0b00000000,
+    .expected_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .expected_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666}
+    //0x6666666666666666666666666666666666666666666666666666666666666658
+};
+*/
+
+cc3xx_ec_edw_point_decompress_test_data_t point_decompress_impossible =  {
+    //generator point as simple test
+    //when interpreted as little endian the hex number startis with 0x6 -> 0b0110 -> most significant bit is 0 -> matches lsb of expected x (0xA -> 0b10)
+    .y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .expected_odd_x = 0b00000000,
+    .expected_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .expected_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666}
+    //0x6666666666666666666666666666666666666666666666666666666666666658
+};
+
+cc3xx_ec_edw_point_decompress_test_data_t point_decompress_odd_x =  {
+    //generator point as simple test
+    //when interpreted as little endian the hex number startis with 0x6 -> 0b0110 -> most significant bit is 0 -> matches lsb of expected x (0xA -> 0b10)
+    .y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .expected_odd_x = 0b00000000,
+    .expected_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .expected_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666}
+    //0x6666666666666666666666666666666666666666666666666666666666666658
+};
+
 int cc3xx_test_ecc_edw_decompress_point(cc3xx_ec_edw_point_decompress_test_data_t *data){
     uint8_t odd_x = 0x00;
     int rc = 0;
-    //all representations are little endian -> first bit of last uint32 should be msb
+    //all representations are little endian -> first bit of last uint32 should be msb and thus lsb of x
     odd_x |= data->y[7] >> 31;
     cc3xx_test_assert(odd_x == data->expected_odd_x);
 
@@ -67,15 +112,18 @@ int cc3xx_test_ecc_edw_decompress_point(cc3xx_ec_edw_point_decompress_test_data_
     cc3xx_lowlevel_pka_read_reg(decompressed.y, decompressed_y, 32);
 
     printf("\n");
-    printf("\n");
-    printf("\n");
+    printf("Decompressed X:\n");
     for(size_t i=0; i < 8; i++){
         printf("%08x ", decompressed_x[i]);
     }
+    
     printf("\n");
+
+    printf("Expected X:\n");
     for(size_t i=0; i < 8; i++){
-        printf("%08x ", decompressed_y[i]);
+        printf("%08x ", data->expected_x[i]);
     }
+    printf("\n");
 
 cleanup:
     cc3xx_lowlevel_pka_free_reg(reg_y);

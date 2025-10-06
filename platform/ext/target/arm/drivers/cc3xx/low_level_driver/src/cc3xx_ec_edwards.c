@@ -21,7 +21,7 @@ void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t i
         // decompress: (YP) -> (XP,YP,ZP=1,TP) 
         // tw. edw curve= ax^2 + y^2 = 1 + dx^2y^2 ==> x = sqrt(1-y^2 / 1-dy^2)
 
-        uint32_t  bit0; //used to read values from regs. 
+        uint32_t bit0;
 
         uint32_t debug[8] = {0};
         size_t debug_len = 32;
@@ -62,22 +62,34 @@ void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t i
 
         //selbes spiel wie mit d -> q58 bei init vordefinieren oder hier ad hoc setzen
         //geht ohne mod? muss ohne mod?
-        cc3xx_lowlevel_pka_mod_exp(t5, curve->q58, reg_x); // x = (u*v^7)^((p-5)/8) //<---------da putt
+        cc3xx_lowlevel_pka_mod_exp(t5, curve->q58, reg_x); // x = (u*v^7)^((p-5)/8)
         //PKA_MOD_EXP(LEN_ID_N_BITS, rX, EDW_REG_T5, EDW_REG_Q58);            // hwmexp(x, t5, q58, n, np); // x = t5^reg_q58 // Wurzel ziehen in Magic? q58 = = (P - 5)/8 // ja, genau
         cc3xx_lowlevel_pka_mod_mul(t3, reg_x, reg_x); //x = (u*v^7)^((p-5)/8) * u
         //PKA_MOD_MUL_NFR(LEN_ID_N_BITS, rX, rX, EDW_REG_T3);                 // hwmmul(x, x, t3, n, np); // x = x * t3 = 
+        
         cc3xx_lowlevel_pka_mod_mul(t, reg_x, reg_x); // x = (u*v^7)^((p-5)/8) * uv^3
+        //cc3xx_lowlevel_pka_read_reg(reg_x, debug, debug_len);
+        //print_debug("x: ",debug, debug_bytes);
         //PKA_MOD_MUL_NFR(LEN_ID_N_BITS, rX, rX, EDW_REG_T);                  // hwmmul(x, x, t, n,np); // x = x * t
+        
         cc3xx_lowlevel_pka_mod_mul(reg_x, reg_x, t); // t = ((u*v^7)^((p-5)/8) * uv^3)^2 = x^2
+        //cc3xx_lowlevel_pka_read_reg(t, debug, debug_len);
+        //print_debug("t = x*x: ",debug, debug_bytes);
         //PKA_MOD_MUL_NFR(LEN_ID_N_BITS, EDW_REG_T, rX, rX);                  // hwmmul(t, x, x, n,np); // t = x * x
         
         //mul acc haben wir nicht, daher erst mul, dann acc um t = t4 * t + t3 zu erreichen
         cc3xx_lowlevel_pka_mod_mul(t4, t, t); // t = t4 * t <=> t = x^2 * v
+        //cc3xx_lowlevel_pka_read_reg(t, debug, debug_len);
+        //print_debug("t = t4 + t: ",debug, debug_bytes);
+
         cc3xx_lowlevel_pka_add(t3, t, t); // t = t + t3 <=> t = x^2 * v + u
+        //cc3xx_lowlevel_pka_read_reg(t, debug, debug_len);
+        //print_debug("t = t3 + t: ",debug, debug_bytes);
         //PKA_MOD_MUL_ACC(LEN_ID_N_BITS, EDW_REG_T, EDW_REG_T4, EDW_REG_T, EDW_REG_T3); // hwmlap(t,t4, t, t3, n, np, 0); //t = t4 * t + t3
 
         
         cc3xx_lowlevel_pka_div(t, curve->field_modulus, t4, t); //t4 = t / N, t = t mod N <=> t4 = (x^2 * v + u) / N, t = (x^2 * v + u) mod N
+        printf("equal to python impl. till here\n");
         // Divide:  Res =  OpA / OpB , OpA = OpA mod OpB - division,  #define   PKA_DIV(lenId, Res, OpA, OpB) //ahhh, also landet in opA der remainder
         //PKA_DIV(LEN_ID_N_PKA_REG_BITS, EDW_REG_T4, EDW_REG_T, EDW_REG_N); //t4 = t / n where n is the modulus, so either 2^255-19 or the curve order...
 
@@ -94,21 +106,32 @@ void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t i
 
         //PKA_COMPARE_IM_STATUS(LEN_ID_N_PKA_REG_BITS, EDW_REG_T, 0 - im.val, bit0 -status); // t xor 0? 0^0 = 0;  1^1 = 0;  1^0 = 1;  0^1 = 1 --> bit0 = t xor 0 
         //this shoul do the check for the second case of the rfc: (x^2 * v + u) = 0 mod N ? -> if so, x = x * 2^((p-1)/4) = x * sqrt(-1)
+        //I think this shall simply check whether t == 0, if so we run *sq-1, else we do not, this is case 2 of decode from RFC8032
         bit0 = cc3xx_lowlevel_pka_are_equal_si(t, 0); 
         if(bit0) {// bit0 == 0 --> t was 0 -> (x^2 * v + u) = 0 mod N
+                printf("%ld\n", bit0);
+                printf("reg t is 0\n");
                 //sqrt_minus_one auch irgendwo hardcoden oder ad hoc einbauen
                 cc3xx_lowlevel_pka_mod_mul(reg_x, curve->sqrt_m1, reg_x); //x = x * sqrt(-1) //case 2 of rfc
                 //PKA_MOD_MUL_NFR(LEN_ID_N_BITS, rX, rX, EDW_REG_SQRTM1); // x = x * sqrt(-1)
+        }else{
+            printf("%ld\n", bit0);
+            printf("reg t is not 0\n");
         }
-
-        cc3xx_lowlevel_pka_div(reg_x, curve->field_modulus, t4, reg_x); //t4 = x / N <=> x = (u*v^7)^((p-5)/8) * uv^3 / N falls vorheriger Fall nicht hinghauen hat 
+        
+        // das hier ist glaube ich nur mod fuer arme
         // oder x = [(u*v^7)^((p-5)/8) * uv^3 *sqrt(-1)] / N
+        cc3xx_lowlevel_pka_div(reg_x, curve->field_modulus, t4, reg_x); //t4 = x / N <=> x = (u*v^7)^((p-5)/8) * uv^3 / N falls vorheriger Fall nicht hinghauen hat         
         //PKA_DIV(LEN_ID_N_PKA_REG_BITS, EDW_REG_T4, rX, EDW_REG_N); //t4 = x / N
 
+        //das ist der letzte case aus dem decode aus 8032
         bit0 = cc3xx_lowlevel_pka_test_bits_ui(reg_x, 0, 1); //in der hoffnung, dass das das gleiche ist
+        printf("%ld\n", bit0);
         //PKA_READ_BIT0(LEN_ID_N_PKA_REG_BITS, rX, bit0 -bit0); //bit0 = rX[0] ? -> bit0 ist 1 -> x ist ungerade
         if(bit0 != isOddX){ // stimmen istUngerade und sollUngerade nicht überein, dann:
             cc3xx_lowlevel_pka_sub(curve->field_modulus, reg_x, reg_x);       
+            cc3xx_lowlevel_pka_read_reg(reg_x, debug, debug_len);
+            print_debug("x: ",debug, debug_bytes);
             //PKA_SUB(LEN_ID_N_PKA_REG_BITS, rX, EDW_REG_N, rX); // x = N - x
         }
 
