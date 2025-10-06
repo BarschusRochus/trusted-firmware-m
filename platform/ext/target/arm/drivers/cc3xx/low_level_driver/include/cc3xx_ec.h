@@ -84,6 +84,10 @@ typedef struct {
     cc3xx_ec_point_affine generator;
     cc3xx_pka_reg_id_t order;
     uint32_t cofactor;
+
+    cc3xx_pka_reg_id_t param_d;
+    cc3xx_pka_reg_id_t q58;
+    cc3xx_pka_reg_id_t sqrt_m1;
 } cc3xx_ec_curve_t;
 
 /**
