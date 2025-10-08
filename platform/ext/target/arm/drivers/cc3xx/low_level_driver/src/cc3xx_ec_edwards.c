@@ -14,6 +14,14 @@ void print_debug(char* msg, uint32_t *debug, size_t len){
     printf("\n");
 }
 
+void debug_read_and_print_reg(cc3xx_pka_reg_id_t reg, char* label){
+    uint32_t debug[8] = {0};
+    size_t debug_len = 32;
+    size_t debug_bytes = 8;
+
+    cc3xx_lowlevel_pka_read_reg(reg, debug, debug_len);
+    print_debug(label, debug, debug_bytes);
+}
 
 
 void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t isOddX, 
@@ -149,3 +157,50 @@ void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t i
 
 }
 
+
+//effectively evaluate the equation -x^2+y^2 mod p = 1 + d(x^2y^2)
+bool cc3xx_lowlevel_ec_edw_is_point_on_curve(cc3xx_ec_point_affine *p, cc3xx_ec_curve_t *curve){
+
+    bool rc = 0;
+    //TODO: less regs possible? Guess so
+    cc3xx_pka_reg_id_t xx = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t yy = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t xxyy = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t rhs = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t lhs = cc3xx_lowlevel_pka_allocate_reg();
+
+    //setzt N auf 2^255-19
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+
+    cc3xx_lowlevel_pka_mod_mul(p->x, p->x, xx); //x * x
+    cc3xx_lowlevel_pka_mod_mul(p->y, p->y, yy); //y * y
+    cc3xx_lowlevel_pka_mod_mul(xx, yy, xxyy); //xx * yy
+
+    cc3xx_lowlevel_pka_sub_si(curve->field_modulus, 0x1, lhs); // lhs = a mod p = p -1 in case of a = -1
+
+
+    //cc3xx_lowlevel_pka_div(curve->param_a, curve->field_modulus, rhs, lhs); //lhs = a % p, rhs = a / p - rhs will be overwritten, no need for it
+    cc3xx_lowlevel_pka_mod_mul(lhs, xx, lhs); //lhs = a * xx //Todo: does that work? If so I may as well hardcode that
+    cc3xx_lowlevel_pka_mod_add(lhs, yy, lhs); // lhs = lhs + yy
+    cc3xx_lowlevel_pka_div(lhs, curve->field_modulus, rhs, lhs); //lhs = lhs % p, rhs = lhs / p - quotient again unimportant
+
+    //rhs
+    cc3xx_lowlevel_pka_mod_mul(curve->param_d, xxyy, rhs); //rhs = d * xxyy
+    cc3xx_lowlevel_pka_mod_add_si(rhs, 0x1, rhs); // rhs = 1 + rhs
+    cc3xx_lowlevel_pka_div(rhs, curve->field_modulus, xx, rhs); //rhs = rhs % p, xx = rhs / p - quotient again unimportant
+    
+    debug_read_and_print_reg(rhs, "RHS: ");
+    debug_read_and_print_reg(lhs, "LHS: ");
+
+    rc = cc3xx_lowlevel_pka_are_equal(lhs, rhs);
+
+
+    cc3xx_lowlevel_pka_free_reg(lhs);
+    cc3xx_lowlevel_pka_free_reg(rhs);
+    cc3xx_lowlevel_pka_free_reg(xxyy);
+    cc3xx_lowlevel_pka_free_reg(yy);
+    cc3xx_lowlevel_pka_free_reg(xx);
+    //return (rhs == lhs)
+    return rc;
+
+}

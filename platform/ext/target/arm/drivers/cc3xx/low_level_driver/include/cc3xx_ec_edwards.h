@@ -24,6 +24,16 @@ void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t i
 
 
 /**
+  @brief Checks wether a given point is on the curve. 
+         I.e. wether the x,y coordinates fullfill the curve equation.
+
+  @param p [in] Point to verify
+  @param curve [in] Curve object
+  @return true in case point is on curve, false otherwise
+ */
+bool cc3xx_lowlevel_ec_edw_is_point_on_curve(cc3xx_ec_point_affine *p, cc3xx_ec_curve_t *curve);
+
+/**
  * @brief                        Add two affine points
  *
  * @param[in]  curve             A pointer to an initialized edwards curve
