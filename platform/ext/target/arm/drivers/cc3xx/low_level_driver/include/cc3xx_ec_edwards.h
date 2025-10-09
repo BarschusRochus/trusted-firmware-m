@@ -12,15 +12,19 @@
 extern "C" {
 #endif
 
+//remove me when no longer needed
+void debug_read_and_print_reg(cc3xx_pka_reg_id_t reg, char* label);
+
 /**
   @brief Decompress a given y coordinate and compute affine coordinates x and y
-         a curve point.
+         of a curve point.
 
-  @param y [in/out] Y coordinate to decompress
-  @param decompressed_pt [out] X coordinate calculated from Y
+  @param compressed     [in] Y coordinate to decompress
+  @param curve          [in] curve object
+  @param decompressed   [out] X coordinate calculated from Y
  */
-void cc3xx_lowlevel_ec_edw_decompress_point(cc3xx_pka_reg_id_t reg_y, uint32_t isOddX, 
-        cc3xx_ec_point_affine *decompressed_pt, cc3xx_ec_curve_t *curve);
+void cc3xx_lowlevel_ec_edw_decompress_point(uint32_t *compressed, 
+                cc3xx_ec_curve_t *curve, cc3xx_ec_point_affine *decompressed);
 
 
 /**
