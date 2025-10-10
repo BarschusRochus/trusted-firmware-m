@@ -84,6 +84,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_extended_to_affine(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_pka_mod_mul(p->x, z_inv, res->x);
     cc3xx_lowlevel_pka_mod_mul(p->y, z_inv, res->y);
 
+    cc3xx_lowlevel_pka_free_reg(z_inv);
     cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);
 
     return CC3XX_ERR_SUCCESS;

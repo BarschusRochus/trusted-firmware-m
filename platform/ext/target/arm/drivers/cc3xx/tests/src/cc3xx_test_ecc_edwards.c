@@ -12,6 +12,7 @@
 #include "cc3xx_pka.h"
 #include "cc3xx_test_assert.h"
 #include "cc3xx_init.h"
+#include "cc3xx_ec_edw_extended_point.h"
 
 #include "cc3xx_test_utils.h"
 #include <stdint.h>
@@ -19,7 +20,7 @@
 
 void print__debug(uint32_t *debug, size_t len){
     for(size_t i=0; i < len; i++){
-        printf("%08xl ", debug[i]);
+        printf("%08lx ", debug[i]);
     }
     printf("\n");
 }
@@ -46,6 +47,16 @@ typedef struct {
     uint32_t expected_x[8];
     uint32_t expected_y[8];
 }cc3xx_ec_edw_point_decompress_test_data_t;
+
+typedef struct {
+    char *label;
+    uint32_t x_affine[8]; 
+    uint32_t y_affine[8]; 
+    uint32_t x_extended[8];
+    uint32_t y_extended[8];
+    uint32_t z_extended[8];
+    uint32_t t_extended[8];
+}cc3xx_ec_edw_ext_point_test_data_t;
 
 cc3xx_ec_edw_point_decompress_test_data_t point_decompress_generator =  {
     //generator point as simple test
@@ -98,6 +109,18 @@ cc3xx_ec_edw_point_decompress_test_data_t point_decompress_r_pub_from_taler =  {
     .expected_x = { 0x9ea457c7, 0x653cdf7a, 0x459b8d17, 0xd9dfaa98, 0x43247adc, 0xa9823013, 0x949db591, 0x632898b5},
     .expected_y = { 0xcdf57a91, 0xba8c4ef6, 0xf6375100, 0xb5c8146f, 0x14a531c5, 0x0c90c668, 0xac7b11cf, 0x073e2ad8}
 };
+
+cc3xx_ec_edw_ext_point_test_data_t generator_to_extendend = {
+    .label = "Generator point",
+    .x_affine = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .y_affine = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .x_extended = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .y_extended = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .z_extended = {0x1},
+    //0x67875f0f d78b7665 66ea4e8e 64abe37d 20f09f80 775152f5 6dde8ab3 a5b7dda3
+    .t_extended = {0xa5b7dda3, 0x6dde8ab3, 0x775152f5, 0x20f09f80, 0x64abe37d, 0x66ea4e8e, 0xd78b7665, 0x67875f0f}
+};
+
 
 
 /*further decompress tests:
@@ -173,6 +196,59 @@ cleanup:
     return rc;
 }
 
+int cc3xx_test_ecc_edw_extended_point(cc3xx_ec_edw_ext_point_test_data_t *data){
+
+    int rc = 0;
+     
+    NRF_CRYPTOCELL->ENABLE = 1;
+    cc3xx_lowlevel_init();
+
+    cc3xx_ec_curve_t curve = {};
+    cc3xx_lowlevel_ec_init(CC3XX_EC_CURVE_ED25519, &curve);
+
+    cc3xx_ec_point_affine point = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(point.x, data->x_affine, 32);
+    cc3xx_lowlevel_pka_write_reg(point.y, data->y_affine, 32);
+
+    bool on_curve = cc3xx_lowlevel_ec_edw_is_point_on_curve(&point, &curve);
+    assert(on_curve);
+
+    cc3xx_ec_point_extended pt_extended = cc3xx_lowlevel_ec_allocate_extended_point();
+
+    cc3xx_lowlevel_ec_affine_to_extended(&curve, &point, &pt_extended);
+    
+    uint32_t tmp[8];
+    cc3xx_lowlevel_pka_read_reg(pt_extended.x,tmp, 32);
+    print__debug(tmp, 8);
+    cc3xx_lowlevel_pka_read_reg(pt_extended.y,tmp, 32);
+    print__debug(tmp, 8);
+    cc3xx_lowlevel_pka_read_reg(pt_extended.z,tmp, 32);
+    print__debug(tmp, 8);
+    cc3xx_lowlevel_pka_read_reg(pt_extended.t,tmp, 32);
+    print__debug(tmp, 8);
+    print__debug(data->t_extended, 8);
+
+    cc3xx_ec_point_affine back_to_affine = cc3xx_lowlevel_ec_allocate_point();
+
+    cc3xx_lowlevel_ec_extended_to_affine(&curve, &pt_extended, &back_to_affine);
+    on_curve = cc3xx_lowlevel_ec_edw_is_point_on_curve(&back_to_affine, &curve);
+    assert(on_curve);
+
+    cc3xx_lowlevel_pka_read_reg(back_to_affine.x,tmp, 32);
+    print__debug(tmp, 8);
+    cc3xx_lowlevel_pka_read_reg(back_to_affine.y,tmp, 32);
+    print__debug(tmp, 8);
+
+
+cleanup:
+    cc3xx_lowlevel_ec_free_point(&back_to_affine);    
+    cc3xx_lowlevel_ec_free_extended_point(&pt_extended);
+    cc3xx_lowlevel_ec_free_point(&point);
+    cc3xx_lowlevel_ec_uninit();
+    NRF_CRYPTOCELL->ENABLE = 0;
+    return rc;
+}
+
 /*
 int cc3xx_test_reg_bit_manipulation(void){
 
@@ -235,6 +311,10 @@ static void ecc_edwards_tests_run(struct test_result_t *ret)
     TEST_ASSERT(cc3xx_test_ecc_edw_point_on_curve(&point_decompress_even_x) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_point_on_curve(&point_decompress_generator) == 0, "Point decompression did not succeed");
     printf("POINT ON CURVE TESTS PASSED\n\n");
+
+    printf("EXTENDEND POINT TESTS\n\n");
+    TEST_ASSERT(cc3xx_test_ecc_edw_extended_point(&generator_to_extendend) == 0, "Point decompression did not succeed");
+    printf("EXTENDEND POINT TESTS PASSED\n\n");
 
     ret->val = TEST_PASSED;
     return;
