@@ -58,6 +58,16 @@ typedef struct {
     uint32_t t_extended[8];
 }cc3xx_ec_edw_ext_point_test_data_t;
 
+typedef struct {
+    char *label;
+    uint32_t p_x[8]; 
+    uint32_t p_y[8]; 
+    uint32_t q_x[8]; 
+    uint32_t q_y[8]; 
+    uint32_t res_x[8]; 
+    uint32_t res_y[8]; 
+}cc3xx_ec_edw_addition_test_t;
+
 cc3xx_ec_edw_point_decompress_test_data_t point_decompress_generator =  {
     //generator point as simple test
     //when interpreted as little endian the hex number startis with 0x6 -> 0b0110 -> most significant bit is 0 -> matches lsb of expected x (0xA -> 0b10)
@@ -121,7 +131,33 @@ cc3xx_ec_edw_ext_point_test_data_t generator_to_extendend = {
     .t_extended = {0xa5b7dda3, 0x6dde8ab3, 0x775152f5, 0x20f09f80, 0x64abe37d, 0x66ea4e8e, 0xd78b7665, 0x67875f0f}
 };
 
+cc3xx_ec_edw_addition_test_t generator_plus_generator = {
+    .label = "Generator + Generator\n",
+    .p_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .q_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .q_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    //0x36ab384c 9f5a046c 3d043b7d 1833e7ac 080d8e45 15d7a45f 83c5a14e 2843ce0e
+    .res_x = {0x2843ce0e, 0x83c5a14e, 0x15d7a45f, 0x080d8e45, 0x1833e7ac, 0x3d043b7d, 0x9f5a046c, 0x36ab384c},
+    //0x2260cdf3 092329c2 1da25ee8 c9a21f56 97390f51 64385156 0e5f46ae 6af8a3c9
+    .res_y = {0x6af8a3c9, 0x0e5f46ae, 0x64385156, 0x97390f51, 0xc9a21f56, 0x1da25ee8, 0x092329c2, 0x2260cdf3}
+};
 
+cc3xx_ec_edw_addition_test_t twenty_G_plus_fifty_G = {
+    .label = "20*G + 50*G\n",
+    //0x673c65ca edd698b9 4f5bbd75 7df73a9e 6985150e cd4a2135 a058e273 ab4cf9af - 20Gx
+    //0x136cebac b6260a9d 5e6a3e31 71c535f0 be71cfbe 16a960b9 dd317bda 6f3c5a38 - 20Gy
+    //0x1687cbf8 4fd6eff0 8833b22b 598bd634 e5e2b2e8 ac548450 6bb9a105 7f2f259e - 50Gx
+    //0x14a6e98e 85a577bc 8299245a 489b96fe fb1197f1 edb5ab95 49d283a4 e209bfb1 - 50Gy
+    //0x3baf6ffd 495a94ab debaaeb9 d4853792 be9c8a5b 622b3f77 d6e18801 391d723e - 70Gx
+    //0x16a37175 2a302c2d b274caad 6e59afb7 b0675344 1663e48b 772606d0 c485b2e8 - 70Gy
+    .p_x    = {0xab4cf9af, 0xa058e273, 0xcd4a2135, 0x6985150e, 0x7df73a9e, 0x4f5bbd75, 0xedd698b9, 0x673c65ca},
+    .p_y    = {0x6f3c5a38, 0xdd317bda, 0x16a960b9, 0xbe71cfbe, 0x71c535f0, 0x5e6a3e31, 0xb6260a9d, 0x136cebac},
+    .q_x    = {0x7f2f259e, 0x6bb9a105, 0xac548450, 0xe5e2b2e8, 0x598bd634, 0x8833b22b, 0x4fd6eff0, 0x1687cbf8},
+    .q_y    = {0xe209bfb1, 0x49d283a4, 0xedb5ab95, 0xfb1197f1, 0x489b96fe, 0x8299245a, 0x85a577bc, 0x14a6e98e},
+    .res_x  = {0x391d723e, 0xd6e18801, 0x622b3f77, 0xbe9c8a5b, 0xd4853792, 0xdebaaeb9, 0x495a94ab, 0x3baf6ffd},
+    .res_y  = {0xc485b2e8, 0x772606d0, 0x1663e48b, 0xb0675344, 0x6e59afb7, 0xb274caad, 0x2a302c2d, 0x16a37175}
+};
 
 /*further decompress tests:
 - point that can't be decoded
@@ -249,53 +285,65 @@ cleanup:
     return rc;
 }
 
-/*
-int cc3xx_test_reg_bit_manipulation(void){
+int cc3xx_test_ecc_edw_addition(cc3xx_ec_edw_addition_test_t *data){
 
     int rc = 0;
-    uint32_t x[8] = {0x0};
-    uint32_t y[8] = {0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111};
+    uint32_t tmp[8]; //to read values from reg
+     
     NRF_CRYPTOCELL->ENABLE = 1;
     cc3xx_lowlevel_init();
 
     cc3xx_ec_curve_t curve = {};
     cc3xx_lowlevel_ec_init(CC3XX_EC_CURVE_ED25519, &curve);
 
-    printf("right after ec init:\n");
-    debug_print_virt_reg_map();
+    cc3xx_ec_point_affine p = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(p.x, data->p_x, 32);
+    cc3xx_lowlevel_pka_write_reg(p.y, data->p_y, 32);
 
-    cc3xx_ec_point_affine point = cc3xx_lowlevel_ec_allocate_point();
-    cc3xx_lowlevel_pka_write_reg(point.x, x, 32);
-    cc3xx_lowlevel_pka_write_reg(point.y, y, 32);
-    debug_read_and_print_reg(point.x, "x: ");
-    debug_read_and_print_reg(point.y, "y: ");
+    cc3xx_ec_point_affine q = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(q.x, data->q_x, 32);
+    cc3xx_lowlevel_pka_write_reg(q.y, data->q_y, 32);
 
-    printf("before bit analysis:\n");
-    debug_print_virt_reg_map();
+    bool on_curve = cc3xx_lowlevel_ec_edw_is_point_on_curve(&p, &curve);
+    assert(on_curve);
 
-    uint32_t bits = cc3xx_lowlevel_pka_test_bits_ui(point.x, 0, 4);
-    printf("read bits from reg x: %08lx\n", bits);
-    bits = cc3xx_lowlevel_pka_test_bits_ui(point.y, 0, 4);
-    printf("read bits from reg y: %08lx\n", bits);
+    on_curve = cc3xx_lowlevel_ec_edw_is_point_on_curve(&q, &curve);
+    assert(on_curve);
+
+    cc3xx_ec_point_affine res = cc3xx_lowlevel_ec_allocate_point();
+
+    cc3xx_lowlevel_ec_edwards_add_points(&curve, &p, &q, &res);
+
+    on_curve = cc3xx_lowlevel_ec_edw_is_point_on_curve(&res, &curve);
+    assert(on_curve);
     
-    //flip both bits
-    cc3xx_lowlevel_pka_flip_bit(point.x, 0, point.x);
-    cc3xx_lowlevel_pka_flip_bit(point.x, 0, point.y);
-    bits = cc3xx_lowlevel_pka_test_bits_ui(point.x, 0, 4);
-    printf("read bits from reg x: %08lx\n", bits);
-    bits = cc3xx_lowlevel_pka_test_bits_ui(point.y, 0, 4);
-    printf("read bits from reg y: %08lx\n", bits);
+    cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
+    assert(memcmp(tmp, data->res_x, 32) == 0);
+    cc3xx_lowlevel_pka_read_reg(res.y,tmp, 32);
+    assert(memcmp(tmp, data->res_y, 32) == 0);
 
-    printf("after:\n");
-    debug_print_virt_reg_map();
+    /*
+    printf("calculated results:\n");
+    cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
+    print__debug(tmp, 8);
+    cc3xx_lowlevel_pka_read_reg(res.y,tmp, 32);
+    print__debug(tmp, 8);
+    
+    printf("expected results:\n");
+    print__debug(data->res_x, 8);
+    print__debug(data->res_y, 8);
+    */
 
 cleanup:
-    cc3xx_lowlevel_ec_free_point(&point);
+    cc3xx_lowlevel_ec_free_point(&res);
+    cc3xx_lowlevel_ec_free_point(&q);
+    cc3xx_lowlevel_ec_free_point(&p);
     cc3xx_lowlevel_ec_uninit();
     NRF_CRYPTOCELL->ENABLE = 0;
     return rc;
 }
-*/
+
+
 static void ecc_edwards_tests_run(struct test_result_t *ret)
 {
 
@@ -315,6 +363,11 @@ static void ecc_edwards_tests_run(struct test_result_t *ret)
     printf("EXTENDEND POINT TESTS\n\n");
     TEST_ASSERT(cc3xx_test_ecc_edw_extended_point(&generator_to_extendend) == 0, "Point decompression did not succeed");
     printf("EXTENDEND POINT TESTS PASSED\n\n");
+
+    printf("POINT ADDITION TESTS\n\n");
+    TEST_ASSERT(cc3xx_test_ecc_edw_addition(&generator_plus_generator) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_addition(&twenty_G_plus_fifty_G) == 0, "Point decompression did not succeed");
+    printf("POINT ADDITION PASSED\n\n");
 
     ret->val = TEST_PASSED;
     return;

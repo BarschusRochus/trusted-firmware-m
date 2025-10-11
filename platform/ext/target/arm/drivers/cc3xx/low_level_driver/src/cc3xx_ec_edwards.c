@@ -1,6 +1,7 @@
 #include "cc3xx_ec_edwards.h"
 #include "cc3xx_aes.h"
 #include "cc3xx_ec.h"
+#include "cc3xx_ec_edw_extended_point.h"
 #include "cc3xx_pka.h"
 #include <stdint.h>
 
@@ -177,8 +178,8 @@ bool cc3xx_lowlevel_ec_edw_is_point_on_curve(cc3xx_ec_point_affine *p, cc3xx_ec_
     cc3xx_lowlevel_pka_mod_add_si(rhs, 0x1, rhs); // rhs = 1 + rhs
     cc3xx_lowlevel_pka_div(rhs, curve->field_modulus, xx, rhs); //rhs = rhs % p, xx = rhs / p - quotient again unimportant
     
-    debug_read_and_print_reg(rhs, "RHS: ");
-    debug_read_and_print_reg(lhs, "LHS: ");
+    //debug_read_and_print_reg(rhs, "RHS: ");
+    //debug_read_and_print_reg(lhs, "LHS: ");
 
     rc = cc3xx_lowlevel_pka_are_equal(lhs, rhs);
 
@@ -195,4 +196,124 @@ bool cc3xx_lowlevel_ec_edw_is_point_on_curve(cc3xx_ec_point_affine *p, cc3xx_ec_
     
     return rc;
 
+}
+
+
+/*
+ * About k
+ * First option: See Twisted Edwards Curves Revisited, 2008 by Hisil, Wong, Carter, Dawson chap. 3.1
+ * Second option: See c25519 ed25519_k in ed25519.c
+ * Third option: Calculate following orders form 1st option:
+ * d, a from twisted edwards 25519 formula, p = 2^255-19
+ * d_ = -d /a (as a =-1 this should be d)
+ * k = 2 * d_ % p
+ */
+
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_extended_points(cc3xx_ec_curve_t *curve,
+        cc3xx_ec_point_extended *p, cc3xx_ec_point_extended *q, cc3xx_ec_point_extended *res)
+{
+
+    //this removes the currently mapped registers and saves the addresses under
+    //which they are stored for later
+    //as plenty of registers are needed here this simply makes room in the memory
+    //map
+    cc3xx_lowlevel_pka_unmap_physical_registers();
+
+    cc3xx_pka_reg_id_t A = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t B = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t C = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t D = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t E = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t F = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t G = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t H = cc3xx_lowlevel_pka_allocate_reg();
+
+    //parameter k = 2d'; d' = -d/a (mod field modulus); see above
+    //k = 0x2406d9dc56dffce7198e80f2eef3d13000e0149a8283b156ebd69b9426b2f159
+    uint32_t k[8] = {0x26b2f159, 0xebd69b94, 0x8283b156, 0x00e0149a,
+                     0xeef3d130, 0x198e80f2, 0x56dffce7, 0x2406d9dc};
+
+    // compute A = (Y1-X1)(Y2-X2)
+    cc3xx_lowlevel_pka_mod_sub(p->y, p->x, A); //(Y1-X1)
+    cc3xx_lowlevel_pka_mod_sub(q->y, q->x, B); //(Y2-X2)
+    cc3xx_lowlevel_pka_mod_mul(A, B, A); //A = (Y1-X1)(Y2-X2)
+    
+    //compute B = (Y1+X1)(Y2+X2)
+    cc3xx_lowlevel_pka_mod_add(p->y, p->x, B); //(Y1+X1)
+    cc3xx_lowlevel_pka_mod_add(q->y, q->x, C); //(Y2+X2)
+    cc3xx_lowlevel_pka_mod_mul(C, B, B); //B = (Y1+X1)(Y2+X2)
+    
+    //compute C = T1 k T2
+    cc3xx_lowlevel_pka_mod_mul(p->t, q->t, C); //T1 * T2
+    cc3xx_lowlevel_pka_write_reg(D, k, 32); // D=k
+    cc3xx_lowlevel_pka_mod_mul(C, D, C); //C = T1 * T2 * k
+    
+    //compute D = Z1 2 Z2
+    cc3xx_lowlevel_pka_mod_mul(p->z, q->z, D); //D = Z1 * Z2
+    cc3xx_lowlevel_pka_mod_mul_si(D, 0x2, D); //D = Z1 * Z2 * 2 <--Der Penner nimmt sich n extra reg
+    
+    //compute E = B - A 
+    cc3xx_lowlevel_pka_mod_sub(B, A, E);
+    
+    //compute F = D - C
+    cc3xx_lowlevel_pka_mod_sub(D, C, F);
+    //compute G = D + C
+    cc3xx_lowlevel_pka_mod_add(D, C, G);
+    
+    //compute H = B + A
+    cc3xx_lowlevel_pka_mod_add(B,A,H);
+    
+    //compute X3 = E F
+    cc3xx_lowlevel_pka_mod_mul(E, F, res->x);
+
+    //compute Y3 = G H
+    cc3xx_lowlevel_pka_mod_mul(G, H, res->y);
+
+    //compute T3 = E H
+    cc3xx_lowlevel_pka_mod_mul(E, H, res->t);
+
+    //compute Z3 = F G
+    cc3xx_lowlevel_pka_mod_mul(F, G, res->z);
+
+    cc3xx_lowlevel_pka_free_reg(H);
+    cc3xx_lowlevel_pka_free_reg(G);
+    cc3xx_lowlevel_pka_free_reg(F);
+    cc3xx_lowlevel_pka_free_reg(E);
+    cc3xx_lowlevel_pka_free_reg(D);
+    cc3xx_lowlevel_pka_free_reg(C);
+    cc3xx_lowlevel_pka_free_reg(B);
+    cc3xx_lowlevel_pka_free_reg(A);
+
+    return CC3XX_ERR_SUCCESS;
+}
+
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_points(cc3xx_ec_curve_t *curve,
+        cc3xx_ec_point_affine *p, cc3xx_ec_point_affine *q, cc3xx_ec_point_affine *res){
+    
+    //I think i need to start with making points projective
+    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_ec_point_extended q_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);    
+
+    cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
+    cc3xx_lowlevel_ec_affine_to_extended(curve, q, &q_ext);
+    
+    //affine to ext sets to order, resetting to field here
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+
+    //Then, I can add them using Explicit formulas database: add-2008-hwcd-3
+    cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &p_ext, &q_ext, &res_ext);
+
+    //Then, I can write them to q
+    cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
+
+    cc3xx_lowlevel_ec_free_extended_point(&res_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&q_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&p_ext);
+
+    cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
+
+    return 0;
 }
