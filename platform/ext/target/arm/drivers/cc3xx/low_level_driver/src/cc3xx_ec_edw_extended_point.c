@@ -90,3 +90,15 @@ cc3xx_err_t cc3xx_lowlevel_ec_extended_to_affine(cc3xx_ec_curve_t *curve,
     return CC3XX_ERR_SUCCESS;
 
 }
+
+bool cc3xx_lowlevel_ec_extended_point_is_neutral(cc3xx_ec_point_extended *p){
+    uint8_t ret = 0;
+    
+    ret += cc3xx_lowlevel_pka_are_equal_si(p->x, 0x0);
+    ret += cc3xx_lowlevel_pka_are_equal_si(p->y, 0x1);
+    //does that make sense? Isn't there something about z being arbitrary?
+    ret += cc3xx_lowlevel_pka_are_equal_si(p->z, 0x1);
+    ret += cc3xx_lowlevel_pka_are_equal_si(p->t, 0x0);
+    
+    return(ret != 0 );
+}

@@ -2,6 +2,7 @@
 #include "cc3xx_aes.h"
 #include "cc3xx_ec.h"
 #include "cc3xx_ec_edw_extended_point.h"
+#include "cc3xx_error.h"
 #include "cc3xx_pka.h"
 #include <stdint.h>
 
@@ -201,8 +202,8 @@ bool cc3xx_lowlevel_ec_edw_is_point_on_curve(cc3xx_ec_point_affine *p, cc3xx_ec_
 
 /*
  * About k
- * First option: See Twisted Edwards Curves Revisited, 2008 by Hisil, Wong, Carter, Dawson chap. 3.1
- * Second option: See c25519 ed25519_k in ed25519.c
+ * First option: See "Twisted Edwards Curves Revisited", 2008 by Hisil, Wong, Carter, Dawson chap. 3.1
+ * Second option: See in library c25519; ed25519_k in ed25519.c - this is where this is adapted from
  * Third option: Calculate following orders form 1st option:
  * d, a from twisted edwards 25519 formula, p = 2^255-19
  * d_ = -d /a (as a =-1 this should be d)
@@ -250,7 +251,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_extended_points(cc3xx_ec_curve_t *curv
     
     //compute D = Z1 2 Z2
     cc3xx_lowlevel_pka_mod_mul(p->z, q->z, D); //D = Z1 * Z2
-    cc3xx_lowlevel_pka_mod_mul_si(D, 0x2, D); //D = Z1 * Z2 * 2 <--Der Penner nimmt sich n extra reg
+    cc3xx_lowlevel_pka_mod_mul_si(D, 0x2, D); //D = Z1 * Z2 * 2
     
     //compute E = B - A 
     cc3xx_lowlevel_pka_mod_sub(B, A, E);
@@ -284,6 +285,13 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_extended_points(cc3xx_ec_curve_t *curv
     cc3xx_lowlevel_pka_free_reg(B);
     cc3xx_lowlevel_pka_free_reg(A);
 
+    /*
+    debug_read_and_print_reg(res->x, "X: ");
+    debug_read_and_print_reg(res->y, "Y: ");
+    debug_read_and_print_reg(res->z, "Z: ");
+    debug_read_and_print_reg(res->t, "T: ");
+    */
+
     return CC3XX_ERR_SUCCESS;
 }
 
@@ -295,7 +303,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_points(cc3xx_ec_curve_t *curve,
     cc3xx_ec_point_extended q_ext = cc3xx_lowlevel_ec_allocate_extended_point();
     cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_point();
 
-    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);    
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
 
     cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
     cc3xx_lowlevel_ec_affine_to_extended(curve, q, &q_ext);
@@ -316,4 +324,124 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_points(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
 
     return 0;
+}
+
+void cc3xx_lowlevel_ec_edwards_double_extended_points(cc3xx_ec_curve_t *curve,
+        cc3xx_ec_point_extended *p, cc3xx_ec_point_extended *res)
+{
+    
+    bool is_z_one = false;
+    is_z_one = cc3xx_lowlevel_pka_are_equal_si(p->z, 0x1);
+
+    //ensure that there is space
+    cc3xx_lowlevel_pka_unmap_physical_registers();
+
+    cc3xx_pka_reg_id_t A = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t B = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t C; //only allocate if needed
+    cc3xx_pka_reg_id_t D = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t E = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t F; //only allocate if needed
+    cc3xx_pka_reg_id_t G = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t H = cc3xx_lowlevel_pka_allocate_reg();
+    
+    //hyperelliptic.com -> EFD -> mdbl-2008-hwcd, assumes Z=1. 
+    //if that is not the case 
+    //use the dbl-2008-hwcd formula, same source, doesn't assume Z=1
+    if(!is_z_one){
+         C = cc3xx_lowlevel_pka_allocate_reg();
+         F = cc3xx_lowlevel_pka_allocate_reg();
+    }
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+
+    //A = X1^2
+    cc3xx_lowlevel_pka_mod_exp_si(p->x, 0x2, A);
+    
+    //B = Y1^2
+    cc3xx_lowlevel_pka_mod_exp_si(p->y, 0x2, B);
+    
+    if(!is_z_one){
+        //C = 2*Z1^2
+        cc3xx_lowlevel_pka_mod_exp_si(p->z, 0x2, C);
+        cc3xx_lowlevel_pka_mod_mul_si(C, 0x2, C);
+    }
+
+    //D = a*A, a = -1 should be the same as field modulus - A
+    //however, this hardcodes this to a curve with a=-1
+    cc3xx_lowlevel_pka_mod_neg(A, D);
+
+    //E = (X1+Y1)^2-A-B
+    cc3xx_lowlevel_pka_mod_add(p->x, p->y, E);
+    cc3xx_lowlevel_pka_mod_exp_si(E, 0x2, E);
+    cc3xx_lowlevel_pka_mod_sub(E, A,E);
+    cc3xx_lowlevel_pka_mod_sub(E, B,E);
+    //G = D+B
+    cc3xx_lowlevel_pka_mod_add(D, B, G);
+
+    if(!is_z_one){
+        //F = G-C
+        cc3xx_lowlevel_pka_mod_sub(G, C, F);
+    }
+    
+    //H = D-B
+    cc3xx_lowlevel_pka_mod_sub(D, B, H);
+    
+    if(is_z_one){
+        //X3 = E*(G-2)
+        cc3xx_lowlevel_pka_sub_si(G, 0x2, res->x);
+        cc3xx_lowlevel_pka_mod_mul(E, res->x, res->x);
+    }else{
+        //X3 = E*F
+        cc3xx_lowlevel_pka_mod_mul(E, F, res->x);
+    }
+    
+    //Y3 = G*H
+    cc3xx_lowlevel_pka_mod_mul(G, H, res->y);
+
+    //T3 = E*H
+    cc3xx_lowlevel_pka_mod_mul(E, H, res->t);
+    
+    if(is_z_one){
+        //Z3 = G^2-2*G
+        cc3xx_lowlevel_pka_mod_exp_si(G, 0x2, res->z);
+        cc3xx_lowlevel_pka_mod_mul_si(G, 0x2, G); //store 2G in G
+        cc3xx_lowlevel_pka_mod_sub(res->z, G, res->z);
+    }else{
+        //Z3 = F*G
+        cc3xx_lowlevel_pka_mod_mul(F, G, res->z);
+    }
+
+    if(!is_z_one){
+         cc3xx_lowlevel_pka_free_reg(F);
+         cc3xx_lowlevel_pka_free_reg(C);
+    }
+    cc3xx_lowlevel_pka_free_reg(H);
+    cc3xx_lowlevel_pka_free_reg(G);
+    cc3xx_lowlevel_pka_free_reg(E);
+    cc3xx_lowlevel_pka_free_reg(D);
+    cc3xx_lowlevel_pka_free_reg(B);
+    cc3xx_lowlevel_pka_free_reg(A);
+
+}
+
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_double_point(cc3xx_ec_curve_t *curve,
+        cc3xx_ec_point_affine *p, cc3xx_ec_point_affine *res)
+{
+
+    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+
+    cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
+
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+    cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &p_ext, &res_ext);
+
+    cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
+
+    cc3xx_lowlevel_ec_free_extended_point(&res_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&p_ext);
+
+    return CC3XX_ERR_SUCCESS;
+    
+
 }

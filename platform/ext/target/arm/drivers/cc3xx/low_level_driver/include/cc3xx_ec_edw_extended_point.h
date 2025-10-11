@@ -78,14 +78,14 @@ cc3xx_err_t cc3xx_lowlevel_ec_extended_to_affine(cc3xx_ec_curve_t *curve,
 
 
 /**
- * @brief                        Test if a projective point is infinity.
+ * @brief                        Test if an extended point is the neutral point.
  *
- * @param[in]  p                 A pointer to the projective point to test.
+ * @param[in]  p                 A pointer to the extended point to test.
  *
- * @return                       true if the projective point is the infinity
- *                               point, false if it isn't.
+ * @return                       true if the extended point is the identity
+ *                               element, false if it isn't.
  */
-//bool cc3xx_lowlevel_ec_projective_point_is_infinity(cc3xx_ec_point_projective *p);
+bool cc3xx_lowlevel_ec_extended_point_is_neutral(cc3xx_ec_point_extended *p);
 
 /**
  * @brief                        Convert an affine point to a Jacobian-form

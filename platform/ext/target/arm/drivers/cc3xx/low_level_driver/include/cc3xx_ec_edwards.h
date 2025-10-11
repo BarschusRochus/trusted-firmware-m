@@ -6,6 +6,7 @@
 
 #include "cc3xx_error.h"
 #include "cc3xx_ec.h"
+#include "cc3xx_ec_edw_extended_point.h"
 
 
 #ifdef __cplusplus
@@ -57,6 +58,22 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_points(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *q,
                                                      cc3xx_ec_point_affine *res);
 
+
+
+/**
+ * @brief Doubles the given affine point ( res = pt + pt)
+ * 
+ * @param curve 
+ * @param p 
+ * @param res 
+ * @return cc3xx_err_t 
+ */
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_double_point(cc3xx_ec_curve_t *curve,
+        cc3xx_ec_point_affine *p, cc3xx_ec_point_affine *res);
+
+//remove me
+void cc3xx_lowlevel_ec_edwards_double_extended_points(cc3xx_ec_curve_t *curve,
+        cc3xx_ec_point_extended *p, cc3xx_ec_point_extended *res);
 
 #ifdef __cplusplus
 }
