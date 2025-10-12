@@ -75,6 +75,19 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_double_point(cc3xx_ec_curve_t *curve,
 void cc3xx_lowlevel_ec_edwards_double_extended_points(cc3xx_ec_curve_t *curve,
         cc3xx_ec_point_extended *p, cc3xx_ec_point_extended *res);
 
+
+/**
+ * @brief 
+ * 
+ * @param curve 
+ * @param p 
+ * @param scalar 
+ * @param res 
+ */
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
+                                                     cc3xx_ec_point_affine *p,
+                                                     uint32_t *scalar,
+                                                     cc3xx_ec_point_affine *res);
 #ifdef __cplusplus
 }
 #endif

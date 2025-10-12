@@ -86,6 +86,15 @@ typedef struct {
     uint32_t res_y[8]; 
 }cc3xx_ec_edw_doubling_test_ext_point_t;
 
+typedef struct {
+    char *label;
+    uint32_t p_x[8]; 
+    uint32_t p_y[8]; 
+    uint32_t scalar[8];
+    uint32_t res_x[8]; 
+    uint32_t res_y[8]; 
+}cc3xx_ec_edw_scalar_mult_test_t;
+
 cc3xx_ec_edw_point_decompress_test_data_t point_decompress_generator =  {
     //generator point as simple test
     //when interpreted as little endian the hex number startis with 0x6 -> 0b0110 -> most significant bit is 0 -> matches lsb of expected x (0xA -> 0b10)
@@ -238,6 +247,78 @@ cc3xx_ec_edw_doubling_test_ext_point_t double_2G = {
 .p_t = {0x92cad989, 0xc532c7e3, 0x483d139b, 0x72749500, 0xdd5e07c1, 0xfc6ea6fe, 0x2d298daa, 0x1f6e08da},
 .res_x = {0xc4c9f870,0x493aa657,0x93ce1547,0x1a739ec1,0x7a3520f9,0x8325d4b8,0x56cff146,0x203da8db},
 .res_y = {0xca32112f,0xdf38ab61,0xea2f0ff0,0x4cf22832,0x80d5716c,0x470eb885,0xcb1595e1,0x47d0e827}
+};
+
+cc3xx_ec_edw_scalar_mult_test_t gen_times_1 = {
+    .label ="G * 1",
+    .p_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .scalar = {0x1},
+    .res_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .res_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666}
+};
+
+cc3xx_ec_edw_scalar_mult_test_t gen_times_70 = {
+    .label ="G * 70",
+    .p_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .scalar = {0x46},
+    .res_x  = {0x391d723e, 0xd6e18801, 0x622b3f77, 0xbe9c8a5b, 0xd4853792, 0xdebaaeb9, 0x495a94ab, 0x3baf6ffd},
+    .res_y  = {0xc485b2e8, 0x772606d0, 0x1663e48b, 0xb0675344, 0x6e59afb7, 0xb274caad, 0x2a302c2d, 0x16a37175}
+};
+
+cc3xx_ec_edw_scalar_mult_test_t gen_times_l_minus_one = {
+    .label ="G * l-1",
+    .p_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .scalar = {0x5cf5d3ec,0x5812631a,0xa2f79cd6,0x14def9de, 0x00000000,0x00000000,0x00000000,0x10000000},
+    .res_x  = {0x70da2ad3,0x36a9d29f,0x6ada584d,0x96d3389f,0x022923a3,0x3f5b1dce,0x3291ac01,0x5e96c92c},
+    .res_y  = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666}
+};
+
+cc3xx_ec_edw_scalar_mult_test_t gen_times_l = {
+    .label ="G * l",
+    .p_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .scalar = {0x5cf5d3ed,0x5812631a,0xa2f79cd6,0x14def9de, 0x00000000,0x00000000,0x00000000,0x10000000},
+    .res_x  = {0x0},
+    .res_y  = {0x1}
+};
+
+cc3xx_ec_edw_scalar_mult_test_t gen_times_l_plus_one = { //that should be reduced to one
+    .label ="G * l+1",
+    .p_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .scalar = {0x5cf5d3ee,0x5812631a,0xa2f79cd6,0x14def9de, 0x00000000,0x00000000,0x00000000,0x10000000},
+    .res_x  = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .res_y  = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666}
+};
+
+cc3xx_ec_edw_scalar_mult_test_t gen_times_0x10000000 = {
+    .label ="G * 0x10000000",
+    .p_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .scalar = {0x10000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
+    .res_x  = {0xa1afbe2b,0xb10b2f6d,0x38e0e38f,0x1b410bcd,0xf307154a,0xe9b8dc6f,0x40a3b2de,0x1e45a601},
+    .res_y  = {0x8dda0a76,0x893f072c,0x43ad047d,0x47d26e50,0x85e68acb,0xd2f3241a,0x73dffd60,0x0e730da4}
+};
+
+cc3xx_ec_edw_scalar_mult_test_t gen_times_0x1000 = {
+    .label ="G * 0x1000",
+    .p_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .scalar = {0x00001000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
+    .res_x  = {0x29ded6ea,0x02b9003a,0xc426cb59,0x97b199ba,0x92008e2f,0xeb524f26,0x8b891b47,0x7d13c024},
+    .res_y  = {0x805b20d5,0x952080a6,0x8e9fe9c3,0x9e1e9e87,0x75ccc77a,0x91f1a56c,0x2c01a81a,0x59a976ab}
+};
+
+cc3xx_ec_edw_scalar_mult_test_t gen_times_0x10000 = {
+    .label ="G * 0x10000",
+    .p_x = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p_y = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .scalar = {0x00010000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
+    .res_x  = {0x8411a565,0x9e9d678a,0x7a6844d1,0xa39fe134,0xca07cd54,0x2f541f79,0xee4e7013,0x5de7faa2},
+    .res_y  = {0xf854ec36,0xdf85e4ce,0x901d6ff6,0xc0e8bc08,0x6b432d92,0xab8ea992,0x1e1c2e0a,0x2c9f2364}
 };
 
 int cc3xx_test_ecc_edw_decompress_point(cc3xx_ec_edw_point_decompress_test_data_t *data){
@@ -520,6 +601,57 @@ cleanup:
 }
 
 
+int cc3xx_test_ecc_edw_scalar_mult(
+                        cc3xx_ec_edw_scalar_mult_test_t *data){
+
+    int rc = 0;
+    uint32_t tmp[8]; //to read values from reg
+    printf("%s\n", data->label);
+     
+    NRF_CRYPTOCELL->ENABLE = 1;
+    cc3xx_lowlevel_init();
+
+    cc3xx_ec_curve_t curve = {};
+    cc3xx_lowlevel_ec_init(CC3XX_EC_CURVE_ED25519, &curve);
+
+    cc3xx_ec_point_affine p = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(p.x, data->p_x, 32);
+    cc3xx_lowlevel_pka_write_reg(p.y, data->p_y, 32);
+
+    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_lowlevel_pka_write_reg(s, data->scalar, 32);
+
+    cc3xx_ec_point_affine res = cc3xx_lowlevel_ec_allocate_point();
+
+    cc3xx_lowlevel_ec_edwards_scalar_mult(&curve, &p, data->scalar, &res);
+
+    printf("calculated results:\n");
+    cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
+    print__debug(tmp, 8);
+    cc3xx_lowlevel_pka_read_reg(res.y,tmp, 32);
+    print__debug(tmp, 8);
+    
+    printf("expected results:\n");
+    print__debug(data->res_x, 8);
+    print__debug(data->res_y, 8);
+
+
+    cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
+    assert(memcmp(tmp, data->res_x, 32) == 0);
+    cc3xx_lowlevel_pka_read_reg(res.y,tmp, 32);
+    assert(memcmp(tmp, data->res_y, 32) == 0);
+    
+
+cleanup:
+    cc3xx_lowlevel_ec_free_point(&res);
+    cc3xx_lowlevel_pka_free_reg(s);
+    cc3xx_lowlevel_ec_free_point(&p);
+    cc3xx_lowlevel_ec_uninit();
+    NRF_CRYPTOCELL->ENABLE = 0;
+    return rc;
+}
+
+
 /*further test ideas
 decompression tests:
 - point that can't be decoded
@@ -560,6 +692,16 @@ static void ecc_edwards_tests_run(struct test_result_t *ret)
     TEST_ASSERT(cc3xx_test_ecc_edw_doubling(&double_generator) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_doubling_extended_coord(&double_2G) == 0, "Point decompression did not succeed");
     printf("POINT DOUBLING TESTS PASSED \n\n");
+
+    printf("SCALAR MULT TESTS\n");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_1) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_70) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_0x1000) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_0x10000) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_l) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_l_minus_one) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_l_plus_one) == 0, "Point decompression did not succeed");
+    printf("SCALAR MULT TESTS PASSED\n\n");
 
     ret->val = TEST_PASSED;
     return;

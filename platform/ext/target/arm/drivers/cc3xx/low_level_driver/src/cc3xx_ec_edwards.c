@@ -445,3 +445,149 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_double_point(cc3xx_ec_curve_t *curve,
     
 
 }
+
+
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_slow(cc3xx_ec_curve_t *curve,
+                                                     cc3xx_ec_point_affine *p,
+                                                     uint32_t *scalar,
+                                                     cc3xx_ec_point_affine *res)
+{
+    //erstmal die simple variante s mal
+    /*
+    sP = Q
+    Q = P +P +P + P + ... + P + P +P
+    res = 0
+    also
+    while s > 0:
+      res = res + P
+      s--
+
+    */
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
+    
+    //given point to extended
+    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
+    cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
+    
+    //mach mal ein allocate neutral point für diesen Fall
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_lowlevel_pka_clear(res_ext.x);
+    cc3xx_lowlevel_pka_clear(res_ext.y);
+    cc3xx_lowlevel_pka_clear(res_ext.z);
+    cc3xx_lowlevel_pka_clear(res_ext.t);
+    cc3xx_lowlevel_pka_add_si(res_ext.y, 0x1, res_ext.y);
+    cc3xx_lowlevel_pka_add_si(res_ext.z, 0x1, res_ext.z);
+    
+    //scalar to register
+    //must be done modulo l
+    cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
+
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+    //s times add P to 
+    while( ! cc3xx_lowlevel_pka_are_equal_si(s, 0x0)){ //while s > 0
+        cc3xx_lowlevel_pka_sub_si(s, 0x1, s);
+        cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res_ext, &p_ext, &res_ext); //res = res + p
+    }
+
+    cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
+
+    cc3xx_lowlevel_ec_free_extended_point(&res_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&p_ext);
+    cc3xx_lowlevel_pka_free_reg(s);
+
+
+
+    return 0;
+}
+
+
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
+                                                     cc3xx_ec_point_affine *p,
+                                                     uint32_t *scalar,
+                                                     cc3xx_ec_point_affine *res)
+{
+
+        //double and add
+    /*
+    res = 0
+    adder = p
+    bits = bits_in_scalar_beginning_with_least_significant_bit(scalar)
+    for bit in bits:
+      if bit == 1:
+        res += adder
+      double(adder)
+    return res
+
+    */
+
+    //scalar to register
+    //must be done modulo l
+    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
+    cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
+    cc3xx_lowlevel_pka_reduce(s);
+
+    if(cc3xx_lowlevel_pka_are_equal_si(s, 0x1)){ //1*P = P
+        cc3xx_lowlevel_pka_copy(p->x, res->x);
+        cc3xx_lowlevel_pka_copy(p->y, res->y);
+        
+        cc3xx_lowlevel_pka_free_reg(s);
+        return CC3XX_ERR_SUCCESS;   
+    }
+
+    //TODO: if s == 0 % l return O ?
+
+
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);    
+
+    //given point to extended
+    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
+    cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
+
+    //mach mal ein allocate neutral point für diesen Fall
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_lowlevel_pka_clear(res_ext.x);
+    cc3xx_lowlevel_pka_clear(res_ext.y);
+    cc3xx_lowlevel_pka_clear(res_ext.z);
+    cc3xx_lowlevel_pka_clear(res_ext.t);
+    cc3xx_lowlevel_pka_add_si(res_ext.y, 0x1, res_ext.y);
+    cc3xx_lowlevel_pka_add_si(res_ext.z, 0x1, res_ext.z);
+
+    
+    //adder
+    cc3xx_ec_point_extended adder_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_lowlevel_ec_copy_extended_point(&p_ext, &adder_ext);
+    
+    
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+    
+    //s times add P to 
+    //for bit in scalar
+    uint32_t i = 0;
+    uint32_t bit = 0x0;
+    while(!cc3xx_lowlevel_pka_are_equal_si(s, 0x0)){//while s > 0
+        //printf("Start Runde %ld\n", i);
+        bit = cc3xx_lowlevel_pka_test_bits_ui(s, 0, 1);
+        
+        cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 0x1, s); //s--
+        
+        if(bit == 0x1){
+            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res_ext, &adder_ext, &res_ext);
+        }
+        cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &adder_ext, &adder_ext);
+        //printf("Ende Runde %ld\n", i);
+        i++;
+    }
+    //printf("Ende Runde for loop\n");
+    
+
+    cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
+
+    cc3xx_lowlevel_ec_free_extended_point(&adder_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&res_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&p_ext);
+    cc3xx_lowlevel_pka_free_reg(s);
+
+    return 0;
+}
