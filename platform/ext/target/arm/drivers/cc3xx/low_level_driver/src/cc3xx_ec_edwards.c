@@ -4,6 +4,7 @@
 #include "cc3xx_ec_edw_extended_point.h"
 #include "cc3xx_error.h"
 #include "cc3xx_pka.h"
+#include <stddef.h>
 #include <stdint.h>
 
 //debug
@@ -502,13 +503,16 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_slow(cc3xx_ec_curve_t *curve,
 }
 
 
-cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_double_and_add(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p,
                                                      uint32_t *scalar,
                                                      cc3xx_ec_point_affine *res)
 {
 
-        //double and add
+    //double and add
+    //unfortunately this one is not side-channel resistant
+    //you get a different runtime for a 1 then for a 0
+    //measuring that let's you measure the scalar which might to be a secret key
     /*
     res = 0
     adder = p
@@ -566,6 +570,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
     //for bit in scalar
     uint32_t i = 0;
     uint32_t bit = 0x0;
+    //this allows a measurement of how long the scalar is - will terminate earlier if scalar is short 
     while(!cc3xx_lowlevel_pka_are_equal_si(s, 0x0)){//while s > 0
         //printf("Start Runde %ld\n", i);
         bit = cc3xx_lowlevel_pka_test_bits_ui(s, 0, 1);
@@ -591,3 +596,216 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
 
     return 0;
 }
+
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
+                                                     cc3xx_ec_point_affine *p,
+                                                     uint32_t *scalar,
+                                                     cc3xx_ec_point_affine *res)
+{
+
+    //double and add with unconditional add as seen in c25519 library 
+    //don't know a proper name - constant time double and add?
+    //this is sidechannel resistant in so far as that it will take the same time for bit 0 and 1
+    //it also constantly does 255 operations
+    //TODO: seek some sources before claiming that...
+    /*
+    res = 0
+    adder = p
+    tmp;
+    bits = bits_in_scalar_beginning_with_least_significant_bit(scalar)
+    for bit in bits:
+      if bit == 1:
+        res += adder
+      else:
+        tmp = res + adder //addition to hide bit decision
+      double(adder)
+    return res
+
+    */
+
+    //scalar to register
+    //must be done modulo l
+    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
+    cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
+    cc3xx_lowlevel_pka_reduce(s);
+
+    if(cc3xx_lowlevel_pka_are_equal_si(s, 0x1)){ //1*P = P
+        cc3xx_lowlevel_pka_copy(p->x, res->x);
+        cc3xx_lowlevel_pka_copy(p->y, res->y);
+        
+        cc3xx_lowlevel_pka_free_reg(s);
+        return CC3XX_ERR_SUCCESS;   
+    }
+
+    //TODO: if s == 0 % l return O ?
+
+
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);    
+
+    //given point to extended
+    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
+    cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
+
+    //mach mal ein allocate neutral point für diesen Fall
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_lowlevel_pka_clear(res_ext.x);
+    cc3xx_lowlevel_pka_clear(res_ext.y);
+    cc3xx_lowlevel_pka_clear(res_ext.z);
+    cc3xx_lowlevel_pka_clear(res_ext.t);
+    cc3xx_lowlevel_pka_add_si(res_ext.y, 0x1, res_ext.y);
+    cc3xx_lowlevel_pka_add_si(res_ext.z, 0x1, res_ext.z);
+
+    
+    //adder
+    cc3xx_ec_point_extended adder_ext = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_lowlevel_ec_copy_extended_point(&p_ext, &adder_ext);
+    
+    //tmp point for uncondition addition
+    cc3xx_ec_point_extended tmp = cc3xx_lowlevel_ec_allocate_extended_point();
+    
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+    
+    uint32_t amount_bits = curve->modulus_size * 8;
+    uint32_t i = 0;
+    uint32_t bit = 0x0;
+    while(i < amount_bits){ 
+        bit = cc3xx_lowlevel_pka_test_bits_ui(s, 0, 1);
+        
+        cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 0x1, s); //s--
+        
+        //always do an addition
+        //that shall avoid time based measurement of 0 or 1 
+        //likely also energy based - assuming that one operation here takes a measureable amount of energy?
+        if(bit == 0x1){
+            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res_ext, &adder_ext, &res_ext);
+        }else{
+            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res_ext, &adder_ext, &tmp);
+        }
+        cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &adder_ext, &adder_ext);
+        i++;
+    }
+    //printf("Ende Runde for loop\n");
+    
+
+    cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
+
+    cc3xx_lowlevel_ec_free_extended_point(&tmp);
+    cc3xx_lowlevel_ec_free_extended_point(&adder_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&res_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&p_ext);
+    cc3xx_lowlevel_pka_free_reg(s);
+
+    return 0;
+}
+
+
+/*
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
+                                                     cc3xx_ec_point_affine *p,
+                                                     uint32_t *scalar,
+                                                     cc3xx_ec_point_affine *res)
+{
+
+    //montgommery_ladder
+    //constant operation time
+    //but I guess it only works with montgommery curves and matching addition laws
+    //res0 = 0
+    //res1 = P
+    //bits = bits_in_scalar_beginning_with_least_significant_bit(scalar)
+    //for bit in bits:
+    //  if bit == 0:
+    //    res1 = res0 + res1
+    //    res0 = res0*2
+    //  else:
+    //    res0 = res0 + res1
+    //    res1 = res1 * 2
+    //return res0
+
+    
+
+    //scalar to register
+    //must be done modulo l
+    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
+    cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
+    cc3xx_lowlevel_pka_reduce(s);
+
+    //doing this makes the *1 visible as it will take way less operations then 
+    //other scalar multiplications
+    
+    if(cc3xx_lowlevel_pka_are_equal_si(s, 0x1)){ //1*P = P
+        cc3xx_lowlevel_pka_copy(p->x, res->x);
+        cc3xx_lowlevel_pka_copy(p->y, res->y);
+        
+        cc3xx_lowlevel_pka_free_reg(s);
+        return CC3XX_ERR_SUCCESS;   
+    }
+    
+    //TODO: if s == 0 % l return O ?
+
+
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);    
+
+    //given point to extended
+    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
+    cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
+
+    //mach mal ein allocate neutral point für diesen Fall
+    cc3xx_ec_point_extended res0 = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_lowlevel_pka_clear(res0.x);
+    cc3xx_lowlevel_pka_clear(res0.y);
+    cc3xx_lowlevel_pka_clear(res0.z);
+    cc3xx_lowlevel_pka_clear(res0.t);
+    cc3xx_lowlevel_pka_add_si(res0.y, 0x1, res0.y);
+    cc3xx_lowlevel_pka_add_si(res0.z, 0x1, res0.z);
+
+    //adder
+    cc3xx_ec_point_extended res1 = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_lowlevel_ec_copy_extended_point(&p_ext, &res1);
+    
+    
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+    
+
+    uint8_t bit = 0x0;
+    size_t bitlen = curve->modulus_size * 8;
+    printf("bitlen: %d\n", bitlen);
+    size_t bitpos = bitlen;
+    char bits_as_seen_by_algo[bitlen+1];
+    bits_as_seen_by_algo[bitlen] = '\0';
+    uint32_t round = 0;
+    while(bitpos > 0){//while s > 0
+        //get least significant bit
+        bit = cc3xx_lowlevel_pka_test_bits_ui(s, 0, 1);
+        //shift right by one to get next bit next round
+        cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 0x1, s); //s--
+        //debug
+        sprintf(&bits_as_seen_by_algo[round], "%d", bit & 0x1);
+        printf("Round: %ld, Bit: %d, bitpos: %d\n", round, bit, bitpos);
+        //reduce bitpos to eventually stop the loop
+        bitpos--;
+        
+        if(bit == 0x0){
+            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res0, &res1, &res1);
+            cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &res0, &res0);
+        }else{
+            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res0, &res1, &res0);
+            cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &res1, &res1);
+        }
+        round++;
+    }
+
+    printf("Rounds done: %ld \nBits seen:%s\n", round, bits_as_seen_by_algo);
+    
+
+    cc3xx_lowlevel_ec_extended_to_affine(curve, &res0, res);
+
+    cc3xx_lowlevel_ec_free_extended_point(&res1);
+    cc3xx_lowlevel_ec_free_extended_point(&res0);
+    cc3xx_lowlevel_ec_free_extended_point(&p_ext);
+    cc3xx_lowlevel_pka_free_reg(s);
+
+    return 0;
+}
+*/
