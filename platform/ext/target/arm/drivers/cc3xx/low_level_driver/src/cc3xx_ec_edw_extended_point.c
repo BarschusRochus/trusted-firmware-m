@@ -31,6 +31,25 @@ cc3xx_ec_point_extended cc3xx_lowlevel_ec_allocate_extended_point(void)
     return res;
 }
 
+cc3xx_ec_point_extended cc3xx_lowlevel_ec_allocate_extended_neutral_point(void)
+{
+    cc3xx_ec_point_extended res;
+
+    res.x = cc3xx_lowlevel_pka_allocate_reg();
+    res.y = cc3xx_lowlevel_pka_allocate_reg();
+    res.z = cc3xx_lowlevel_pka_allocate_reg();
+    res.t = cc3xx_lowlevel_pka_allocate_reg();
+
+    cc3xx_lowlevel_pka_clear(res.x);
+    cc3xx_lowlevel_pka_clear(res.y);
+    cc3xx_lowlevel_pka_clear(res.z);
+    cc3xx_lowlevel_pka_clear(res.t);
+    cc3xx_lowlevel_pka_add_si(res.y, 0x1, res.y);
+    cc3xx_lowlevel_pka_add_si(res.z, 0x1, res.z);
+
+    return res;
+}
+
 //free in reverse order as allocation happened
 void cc3xx_lowlevel_ec_free_extended_point(cc3xx_ec_point_extended *p){
     cc3xx_lowlevel_pka_free_reg(p->t);

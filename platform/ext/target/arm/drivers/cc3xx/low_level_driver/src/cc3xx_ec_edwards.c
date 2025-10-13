@@ -489,13 +489,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_slow(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
     
     //mach mal ein allocate neutral point für diesen Fall
-    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_point();
-    cc3xx_lowlevel_pka_clear(res_ext.x);
-    cc3xx_lowlevel_pka_clear(res_ext.y);
-    cc3xx_lowlevel_pka_clear(res_ext.z);
-    cc3xx_lowlevel_pka_clear(res_ext.t);
-    cc3xx_lowlevel_pka_add_si(res_ext.y, 0x1, res_ext.y);
-    cc3xx_lowlevel_pka_add_si(res_ext.z, 0x1, res_ext.z);
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_neutral_point();
     
     //scalar to register
     //must be done modulo l
@@ -567,15 +561,8 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_double_and_add(cc3xx_ec_curve_
     cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
 
     //mach mal ein allocate neutral point für diesen Fall
-    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_point();
-    cc3xx_lowlevel_pka_clear(res_ext.x);
-    cc3xx_lowlevel_pka_clear(res_ext.y);
-    cc3xx_lowlevel_pka_clear(res_ext.z);
-    cc3xx_lowlevel_pka_clear(res_ext.t);
-    cc3xx_lowlevel_pka_add_si(res_ext.y, 0x1, res_ext.y);
-    cc3xx_lowlevel_pka_add_si(res_ext.z, 0x1, res_ext.z);
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_neutral_point();
 
-    
     //adder
     cc3xx_ec_point_extended adder_ext = cc3xx_lowlevel_ec_allocate_extended_point();
     cc3xx_lowlevel_ec_copy_extended_point(&p_ext, &adder_ext);
@@ -665,14 +652,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
 
     //mach mal ein allocate neutral point für diesen Fall
-    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_point();
-    cc3xx_lowlevel_pka_clear(res_ext.x);
-    cc3xx_lowlevel_pka_clear(res_ext.y);
-    cc3xx_lowlevel_pka_clear(res_ext.z);
-    cc3xx_lowlevel_pka_clear(res_ext.t);
-    cc3xx_lowlevel_pka_add_si(res_ext.y, 0x1, res_ext.y);
-    cc3xx_lowlevel_pka_add_si(res_ext.z, 0x1, res_ext.z);
-
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_neutral_point();
     
     //adder
     cc3xx_ec_point_extended adder_ext = cc3xx_lowlevel_ec_allocate_extended_point();

@@ -32,6 +32,14 @@ extern "C" {
 cc3xx_ec_point_extended cc3xx_lowlevel_ec_allocate_extended_point(void);
 
 /**
+ * @brief Allocate an extended point initialised as neutral point
+          (X=0, Y=1, Z=1, T=0)
+ * 
+ * @return cc3xx_ec_point_extended 
+ */
+cc3xx_ec_point_extended cc3xx_lowlevel_ec_allocate_extended_neutral_point(void);
+
+/**
  * @brief                        Free an extended EC point.
  *
  * @param[in]  p                 A pointer to the extended point to free.
