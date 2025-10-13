@@ -156,6 +156,12 @@ cc3xx_err_t cc3xx_lowlevel_ec_edw_decompress_point(uint32_t *compressed,
     rc = cc3xx_lowlevel_ec_edw_decompress_point_pka(decompressed, 
         isOddX, curve);
 
+
+    if( !cc3xx_lowlevel_ec_edw_is_point_on_curve(decompressed, curve)){
+        //TODO: find a better error code
+        return CC3XX_ERR_EC_POINT_OUTSIDE_FIELD;
+    }
+
     //setzt N auf curve oder
     cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
 
