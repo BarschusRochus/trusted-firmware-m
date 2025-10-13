@@ -24,7 +24,7 @@ void debug_read_and_print_reg(cc3xx_pka_reg_id_t reg, char* label);
   @param curve          [in] curve object
   @param decompressed   [out] X coordinate calculated from Y
  */
-void cc3xx_lowlevel_ec_edw_decompress_point(uint32_t *compressed, 
+cc3xx_err_t cc3xx_lowlevel_ec_edw_decompress_point(uint32_t *compressed, 
                 cc3xx_ec_curve_t *curve, cc3xx_ec_point_affine *decompressed);
 
 

@@ -43,7 +43,7 @@ void debug_read_and_print_reg(cc3xx_pka_reg_id_t reg, char* label){
  */
 //void cc3xx_lowlevel_ec_edw_decompress_point_pka(cc3xx_pka_reg_id_t reg_y, uint32_t isOddX, 
 //        cc3xx_ec_point_affine *decompressed_pt, cc3xx_ec_curve_t *curve){
-void cc3xx_lowlevel_ec_edw_decompress_point_pka(cc3xx_ec_point_affine *decompressed_pt, 
+cc3xx_err_t cc3xx_lowlevel_ec_edw_decompress_point_pka(cc3xx_ec_point_affine *decompressed_pt, 
             uint32_t isOddX, cc3xx_ec_curve_t *curve){
         // decompress: (YP) -> (XP,YP,ZP=1,TP) 
         // tw. edw curve= ax^2 + y^2 = 1 + dx^2y^2 ==> x = sqrt(1-y^2 / 1-dy^2)
@@ -99,12 +99,20 @@ void cc3xx_lowlevel_ec_edw_decompress_point_pka(cc3xx_ec_point_affine *decompres
         cc3xx_lowlevel_pka_div(reg_x, curve->field_modulus, t4, reg_x); //x / p = quotient (t4) + remainder (x) => x = x mod p
         
 
+        //problem: x decoded to 0 but oddity is 1 -> cannot be
+        if(cc3xx_lowlevel_pka_are_equal_si(reg_x, 0)){
+            if(isOddX == 1){
+                cc3xx_lowlevel_pka_free_reg(t5);
+                cc3xx_lowlevel_pka_free_reg(t4);
+                cc3xx_lowlevel_pka_free_reg(t3);
+                cc3xx_lowlevel_pka_free_reg(t);
+                //find a better return code
+                return CC3XX_ERR_FAULT_DETECTED;
+            }
+        }
 
         //last part of RFC decode procedure
         bit0 = cc3xx_lowlevel_pka_test_bits_ui(reg_x, 0, 1); //read bit[0]
-        
-        //TODO: if calculated_x == 0 but isOddX = 1
-        //then we're in an obvious problematic situation and decoding should fail
 
         //decide about proper square root by checking least significant bit of x (odd/even)
         if(bit0 != isOddX){ //if isOddx != x % 2 
@@ -121,10 +129,14 @@ void cc3xx_lowlevel_ec_edw_decompress_point_pka(cc3xx_ec_point_affine *decompres
         cc3xx_lowlevel_pka_free_reg(t3);
         cc3xx_lowlevel_pka_free_reg(t);
 
+        return CC3XX_ERR_SUCCESS;
+
 }
 
-void cc3xx_lowlevel_ec_edw_decompress_point(uint32_t *compressed, 
-                    cc3xx_ec_curve_t *curve, cc3xx_ec_point_affine *decompressed){
+cc3xx_err_t cc3xx_lowlevel_ec_edw_decompress_point(uint32_t *compressed, 
+                    cc3xx_ec_curve_t *curve, cc3xx_ec_point_affine *decompressed)
+{
+    int rc = CC3XX_ERR_SUCCESS;
     uint32_t isOddX = 0x00;
     //this assumes that the compressed point is given as 8 uint32_t blocks 
     //this takes the most significant bit of the 8th uint32_t 
@@ -141,11 +153,13 @@ void cc3xx_lowlevel_ec_edw_decompress_point(uint32_t *compressed,
 
     //prepare registers for decompress operation
     cc3xx_lowlevel_pka_write_reg(decompressed->y, y, 32);
-    cc3xx_lowlevel_ec_edw_decompress_point_pka(decompressed, 
+    rc = cc3xx_lowlevel_ec_edw_decompress_point_pka(decompressed, 
         isOddX, curve);
 
     //setzt N auf curve oder
     cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
+
+    return rc;
 } 
 
 //set least significant bit of x coordinate as most significant bit of y coordinate

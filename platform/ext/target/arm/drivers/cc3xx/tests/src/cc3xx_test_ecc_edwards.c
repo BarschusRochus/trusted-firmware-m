@@ -9,6 +9,7 @@
 #include "cc3xx_test_ecc_edwards.h"
 #include "cc3xx_ec.h"
 #include "cc3xx_ec_edwards.h"
+#include "cc3xx_error.h"
 #include "cc3xx_pka.h"
 #include "cc3xx_test_assert.h"
 #include "cc3xx_init.h"
@@ -334,8 +335,10 @@ int cc3xx_test_ecc_edw_decompress_point(cc3xx_ec_edw_point_decompress_test_data_
     //TODO: Could be moved inside function and only uint32_t values could be returned
     //allocate registers for decompressed point
     cc3xx_ec_point_affine decompressed = cc3xx_lowlevel_ec_allocate_point();
-    cc3xx_lowlevel_ec_edw_decompress_point(data->y,&curve, &decompressed);
+    rc = cc3xx_lowlevel_ec_edw_decompress_point(data->y,&curve, &decompressed);
 
+    assert(rc == CC3XX_ERR_SUCCESS);
+    
     uint32_t decompressed_y[8];
     uint32_t decompressed_x[8];
     cc3xx_lowlevel_pka_read_reg(decompressed.x, decompressed_x, 32);
