@@ -29,6 +29,17 @@ void cc3xx_lowlevel_ec_edw_decompress_point(uint32_t *compressed,
 
 
 /**
+ * @brief Compress a point from (X,Y) to just an Y coordinte with msb set to 
+          mod 2 of x.
+ * 
+ * @param curve 
+ * @param point 
+ * @param compressed 
+ */
+void cc3xx_lowlevel_ec_edw_compress_point(cc3xx_ec_curve_t *curve, cc3xx_ec_point_affine *point, 
+                    uint32_t *compressed);
+
+/**
   @brief Checks wether a given point is on the curve. 
          I.e. wether the x,y coordinates fullfill the curve equation.
 

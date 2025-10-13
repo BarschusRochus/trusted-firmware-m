@@ -351,6 +351,33 @@ cleanup:
     return rc;
 }
 
+int cc3xx_test_ecc_edw_compress_point(cc3xx_ec_edw_point_decompress_test_data_t *data){
+    int rc = 0;
+    printf("%s \n",data->label);
+
+    //enable cryptocell and curve
+    NRF_CRYPTOCELL->ENABLE = 1;
+    cc3xx_lowlevel_init();
+    cc3xx_ec_curve_t curve = {};
+    cc3xx_lowlevel_ec_init(CC3XX_EC_CURVE_ED25519, &curve);
+
+    cc3xx_ec_point_affine pt = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(pt.x, data->expected_x, 32);
+    cc3xx_lowlevel_pka_write_reg(pt.y, data->expected_y, 32);
+
+    uint32_t compressed_y[8];
+    
+    cc3xx_lowlevel_ec_edw_compress_point(&curve, &pt, compressed_y);
+
+    assert(memcmp(compressed_y, data->y, 32) == 0);
+
+cleanup:
+    cc3xx_lowlevel_ec_free_point(&pt);
+    cc3xx_lowlevel_ec_uninit();
+    NRF_CRYPTOCELL->ENABLE = 0;
+    return rc;
+}
+
 
 int cc3xx_test_ecc_edw_point_on_curve(cc3xx_ec_edw_point_decompress_test_data_t *data){
 
@@ -625,6 +652,7 @@ int cc3xx_test_ecc_edw_scalar_mult(
 
     cc3xx_lowlevel_ec_edwards_scalar_mult(&curve, &p, data->scalar, &res);
 
+    /*
     printf("calculated results:\n");
     cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
     print__debug(tmp, 8);
@@ -634,6 +662,7 @@ int cc3xx_test_ecc_edw_scalar_mult(
     printf("expected results:\n");
     print__debug(data->res_x, 8);
     print__debug(data->res_y, 8);
+    */
 
 
     cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
@@ -670,7 +699,14 @@ static void ecc_edwards_tests_run(struct test_result_t *ret)
     TEST_ASSERT(cc3xx_test_ecc_edw_decompress_point(&point_decompress_r_pub_from_taler) == 0, "Point decompression did not succeed");
     printf("POINT DECOMPRESSION TESTS PASSED\n\n");
 
-    printf("POINT ON CURVE TESTS STARTING\n");
+    printf("POINT COMPRESSION TESTS\n");
+    TEST_ASSERT(cc3xx_test_ecc_edw_compress_point(&point_decompress_odd_x) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_compress_point(&point_decompress_even_x) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_compress_point(&point_decompress_generator) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_compress_point(&point_decompress_r_pub_from_taler) == 0, "Point decompression did not succeed");
+    printf("POINT COMPRESSION TESTS PASSED\n\n");
+
+    printf("POINT ON CURVE TESTS \n");
     TEST_ASSERT(cc3xx_test_ecc_edw_point_on_curve(&point_decompress_odd_x) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_point_on_curve(&point_decompress_even_x) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_point_on_curve(&point_decompress_generator) == 0, "Point decompression did not succeed");

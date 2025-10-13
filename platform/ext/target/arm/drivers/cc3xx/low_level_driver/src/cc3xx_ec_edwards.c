@@ -148,6 +148,23 @@ void cc3xx_lowlevel_ec_edw_decompress_point(uint32_t *compressed,
     cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
 } 
 
+//set least significant bit of x coordinate as most significant bit of y coordinate
+void cc3xx_lowlevel_ec_edw_compress_point(cc3xx_ec_curve_t *curve, cc3xx_ec_point_affine *point, 
+                    uint32_t *compressed)
+{
+    //get bit 0
+    uint32_t bit0 = cc3xx_lowlevel_pka_test_bits_ui(point->x, 0, 1);
+    //y to compressed - msb is always 0
+    cc3xx_lowlevel_pka_read_reg(point->y, compressed, 32);
+    
+    //if x is odd set msb in y to 1
+    if (bit0 == 1){
+        compressed[7] |= 0b10000000000000000000000000000000;
+    }
+    
+
+}
+
 
 //effectively evaluate the equation -x^2+y^2 mod p = 1 + d(x^2y^2)
 bool cc3xx_lowlevel_ec_edw_is_point_on_curve(cc3xx_ec_point_affine *p, cc3xx_ec_curve_t *curve){
