@@ -26,6 +26,13 @@ void print__debug(uint32_t *debug, size_t len){
     printf("\n");
 }
 
+void init_edwards_25519(cc3xx_ec_curve_t *curve){
+    NRF_CRYPTOCELL->ENABLE = 1;
+    cc3xx_lowlevel_init();
+    cc3xx_lowlevel_ec_init(CC3XX_EC_CURVE_ED25519, curve);
+}
+
+
 void debug_print_virt_reg_map(void){
     uint32_t BASE_ADDRESS = 0x5002B000;
     uint32_t offset = 0x0;
@@ -683,6 +690,38 @@ cleanup:
     return rc;
 }
 
+int cc3xx_test_ecc_edw_scalar_mult_generator(
+                        cc3xx_ec_edw_scalar_mult_test_t *data)
+{
+    cc3xx_ec_curve_t curve = {};
+    init_edwards_25519(&curve);
+
+    int rc = 0;
+    uint32_t tmp[8]; //to read values from reg
+    printf("Scalar Mult Generator: ");
+    printf("%s\n", data->label);
+    
+    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_lowlevel_pka_write_reg(s, data->scalar, 32);
+
+    cc3xx_ec_point_affine res = cc3xx_lowlevel_ec_allocate_point();
+
+    cc3xx_lowlevel_ec_edwards_scalar_mult_generator(&curve, data->scalar, &res);
+
+    cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
+    assert(memcmp(tmp, data->res_x, 32) == 0);
+    cc3xx_lowlevel_pka_read_reg(res.y,tmp, 32);
+    assert(memcmp(tmp, data->res_y, 32) == 0);
+    
+
+cleanup:
+    cc3xx_lowlevel_ec_free_point(&res);
+    cc3xx_lowlevel_pka_free_reg(s);
+    cc3xx_lowlevel_ec_uninit();
+    NRF_CRYPTOCELL->ENABLE = 0;
+    return rc;
+}
+
 
 /*further test ideas
 decompression tests:
@@ -740,6 +779,14 @@ static void ecc_edwards_tests_run(struct test_result_t *ret)
     TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_l) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_l_minus_one) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult(&gen_times_l_plus_one) == 0, "Point decompression did not succeed");
+
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_1) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_70) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_0x1000) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_0x10000) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_l) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_l_minus_one) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_l_plus_one) == 0, "Point decompression did not succeed");
     printf("SCALAR MULT TESTS PASSED\n\n");
 
     ret->val = TEST_PASSED;

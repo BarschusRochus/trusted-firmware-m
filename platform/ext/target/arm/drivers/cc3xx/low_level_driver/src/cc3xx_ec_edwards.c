@@ -48,6 +48,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edw_decompress_point_pka(cc3xx_ec_point_affine *de
         // decompress: (YP) -> (XP,YP,ZP=1,TP) 
         // tw. edw curve= ax^2 + y^2 = 1 + dx^2y^2 ==> x = sqrt(1-y^2 / 1-dy^2)
 
+        cc3xx_lowlevel_pka_unmap_physical_registers();
         uint32_t bit0;
 
         cc3xx_pka_reg_id_t reg_x = decompressed_pt->x;
@@ -646,7 +647,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
     return res
 
     */
-
+    cc3xx_lowlevel_pka_unmap_physical_registers();
     //scalar to register
     //must be done modulo l
     cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
@@ -714,6 +715,14 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_pka_free_reg(s);
 
     return 0;
+}
+
+
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_generator(cc3xx_ec_curve_t *curve,
+                                                     uint32_t *scalar,
+                                                     cc3xx_ec_point_affine *res)
+{
+    return(cc3xx_lowlevel_ec_edwards_scalar_mult(curve, &curve->generator, scalar, res));
 }
 
 
