@@ -18,6 +18,12 @@
 #include "cc3xx_ec.h"
 
 #include "fatal_error.h"
+#include <string.h>
+cc3xx_ec_point_extended_data edwards_extended_neutral_element_data = 
+    {.x = {0x0}, 
+     .y = {0x1},
+     .z = {0x1},
+     .t = {0x0}};
 
 cc3xx_ec_point_extended cc3xx_lowlevel_ec_allocate_extended_point(void)
 {
@@ -40,12 +46,7 @@ cc3xx_ec_point_extended cc3xx_lowlevel_ec_allocate_extended_neutral_point(void)
     res.z = cc3xx_lowlevel_pka_allocate_reg();
     res.t = cc3xx_lowlevel_pka_allocate_reg();
 
-    cc3xx_lowlevel_pka_clear(res.x);
-    cc3xx_lowlevel_pka_clear(res.y);
-    cc3xx_lowlevel_pka_clear(res.z);
-    cc3xx_lowlevel_pka_clear(res.t);
-    cc3xx_lowlevel_pka_add_si(res.y, 0x1, res.y);
-    cc3xx_lowlevel_pka_add_si(res.z, 0x1, res.z);
+    cc3xx_lowlevel_ec_extended_point_from_data(&edwards_extended_neutral_element_data, &res);
 
     return res;
 }
@@ -120,4 +121,32 @@ bool cc3xx_lowlevel_ec_extended_point_is_neutral(cc3xx_ec_point_extended *p){
     ret += cc3xx_lowlevel_pka_are_equal_si(p->t, 0x0);
     
     return(ret != 0 );
+}
+
+void cc3xx_lowlevel_ec_extended_point_from_data(cc3xx_ec_point_extended_data *data, cc3xx_ec_point_extended *pt){
+    cc3xx_lowlevel_pka_clear(pt->x);
+    cc3xx_lowlevel_pka_write_reg(pt->x, data->x, 32);
+    
+    cc3xx_lowlevel_pka_clear(pt->y);
+    cc3xx_lowlevel_pka_write_reg(pt->y, data->y, 32);
+    
+    cc3xx_lowlevel_pka_clear(pt->z);
+    cc3xx_lowlevel_pka_write_reg(pt->z, data->z, 32);
+    
+    cc3xx_lowlevel_pka_clear(pt->t);
+    cc3xx_lowlevel_pka_write_reg(pt->t, data->t, 32);
+}
+
+void cc3xx_lowlevel_ec_extended_point_to_data(cc3xx_ec_point_extended_data *data, cc3xx_ec_point_extended *pt){
+    memset(data->x, 0x0, 32);
+    cc3xx_lowlevel_pka_read_reg(pt->x, data->x, 32);
+    
+    memset(data->y, 0x0, 32);
+    cc3xx_lowlevel_pka_read_reg(pt->y, data->y, 32);
+    
+    memset(data->z, 0x0, 32);
+    cc3xx_lowlevel_pka_read_reg(pt->z, data->z, 32);
+    
+    memset(data->t, 0x0, 32);
+    cc3xx_lowlevel_pka_read_reg(pt->t, data->t, 32);
 }

@@ -13,6 +13,10 @@
 
 #include "cc3xx_ec.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     cc3xx_pka_reg_id_t x;
     cc3xx_pka_reg_id_t y;
@@ -20,9 +24,14 @@ typedef struct {
     cc3xx_pka_reg_id_t t;
 } cc3xx_ec_point_extended;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef struct {
+    uint32_t x[8];
+    uint32_t y[8];
+    uint32_t z[8];
+    uint32_t t[8];
+} cc3xx_ec_point_extended_data;
+
+extern cc3xx_ec_point_extended_data edwards_extended_neutral_element_data;
 
 /**
  * @brief                        Allocate a extended EC point.
@@ -112,6 +121,9 @@ bool cc3xx_lowlevel_ec_extended_point_is_neutral(cc3xx_ec_point_extended *p);
 //                                                        cc3xx_ec_point_affine *p,
 //                                                        cc3xx_ec_point_projective *res);
 
+
+void cc3xx_lowlevel_ec_extended_point_from_data(cc3xx_ec_point_extended_data *data, cc3xx_ec_point_extended *pt);
+void cc3xx_lowlevel_ec_extended_point_to_data(cc3xx_ec_point_extended_data *data, cc3xx_ec_point_extended *pt);
 
 #ifdef __cplusplus
 }
