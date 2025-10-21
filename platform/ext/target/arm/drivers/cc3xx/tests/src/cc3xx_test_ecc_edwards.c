@@ -103,6 +103,18 @@ typedef struct {
     uint32_t res_y[8]; 
 }cc3xx_ec_edw_scalar_mult_test_t;
 
+typedef struct {
+    char *label;
+    uint32_t p1_x[8]; 
+    uint32_t p1_y[8]; 
+    uint32_t p2_x[8]; 
+    uint32_t p2_y[8]; 
+    uint32_t scalar_a[8];
+    uint32_t scalar_b[8];
+    uint32_t res_x[8]; 
+    uint32_t res_y[8];
+}cc3xx_ec_edw_mult_and_add_test_t;
+
 cc3xx_ec_edw_point_decompress_test_data_t point_decompress_generator =  {
     //generator point as simple test
     //when interpreted as little endian the hex number startis with 0x6 -> 0b0110 -> most significant bit is 0 -> matches lsb of expected x (0xA -> 0b10)
@@ -327,6 +339,18 @@ cc3xx_ec_edw_scalar_mult_test_t gen_times_0x10000 = {
     .scalar = {0x00010000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
     .res_x  = {0x8411a565,0x9e9d678a,0x7a6844d1,0xa39fe134,0xca07cd54,0x2f541f79,0xee4e7013,0x5de7faa2},
     .res_y  = {0xf854ec36,0xdf85e4ce,0x901d6ff6,0xc0e8bc08,0x6b432d92,0xab8ea992,0x1e1c2e0a,0x2c9f2364}
+};
+
+cc3xx_ec_edw_mult_and_add_test_t twenty_G_plus_fifty_G_ma = {
+    .label = "20*G + 50*G",
+    .p1_x    = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p1_y    = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .p2_x    = {0x8F25D51A,0xC9562D60,0x9525A7B2,0x692CC760,0xFDD6DC5C,0xC0A4E231,0xCD6E53FE,0x216936D3},
+    .p2_y    = {0x66666658,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666,0x66666666},
+    .scalar_a = {0x14},
+    .scalar_b = {0x32},
+    .res_x  = {0x391d723e, 0xd6e18801, 0x622b3f77, 0xbe9c8a5b, 0xd4853792, 0xdebaaeb9, 0x495a94ab, 0x3baf6ffd},
+    .res_y  = {0xc485b2e8, 0x772606d0, 0x1663e48b, 0xb0675344, 0x6e59afb7, 0xb274caad, 0x2a302c2d, 0x16a37175}
 };
 
 int cc3xx_test_ecc_edw_decompress_point(cc3xx_ec_edw_point_decompress_test_data_t *data){
@@ -723,6 +747,224 @@ cleanup:
 }
 
 
+
+int cc3xx_test_ecc_edw_mult_and_add(
+                        cc3xx_ec_edw_mult_and_add_test_t *data)
+{
+    cc3xx_ec_curve_t curve = {};
+    init_edwards_25519(&curve);
+
+    int rc = 0;
+    uint32_t tmp[8]; //to read values from reg
+    printf("Mult and Add: ");
+    printf("%s\n", data->label);
+    
+    cc3xx_ec_point_affine pt1 = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(pt1.x, data->p1_x, 32);
+    cc3xx_lowlevel_pka_write_reg(pt1.y, data->p1_y, 32);
+    cc3xx_ec_point_affine pt2 = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(pt2.x, data->p2_x, 32);
+    cc3xx_lowlevel_pka_write_reg(pt2.y, data->p2_y, 32);
+
+    cc3xx_ec_point_affine res = cc3xx_lowlevel_ec_allocate_point();
+    printf("Entering mult and add\n");
+    cc3xx_lowlevel_ec_edwards_mult_and_add(&curve, &pt1, &pt2, data->scalar_a, data->scalar_b, &res);
+
+    cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
+    print__debug(tmp, 8);
+    print__debug(data->res_x, 8);
+    assert(memcmp(tmp, data->res_x, 32) == 0);
+    cc3xx_lowlevel_pka_read_reg(res.y,tmp, 32);
+    assert(memcmp(tmp, data->res_y, 32) == 0);
+    
+
+cleanup:
+    cc3xx_lowlevel_ec_free_point(&res);
+    cc3xx_lowlevel_ec_uninit();
+    NRF_CRYPTOCELL->ENABLE = 0;
+    return rc;
+}
+
+int cc3xx_test_ecc_edw_mult_and_add_from_msb(
+                        cc3xx_ec_edw_mult_and_add_test_t *data)
+{
+    cc3xx_ec_curve_t curve = {};
+    init_edwards_25519(&curve);
+
+    int rc = 0;
+    uint32_t tmp[8]; //to read values from reg
+    printf("Mult and Add from msb: ");
+    printf("%s\n", data->label);
+    
+    cc3xx_ec_point_affine pt1 = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(pt1.x, data->p1_x, 32);
+    cc3xx_lowlevel_pka_write_reg(pt1.y, data->p1_y, 32);
+    cc3xx_ec_point_affine pt2 = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(pt2.x, data->p2_x, 32);
+    cc3xx_lowlevel_pka_write_reg(pt2.y, data->p2_y, 32);
+
+    cc3xx_ec_point_affine res = cc3xx_lowlevel_ec_allocate_point();
+    printf("Entering mult and add\n");
+    cc3xx_lowlevel_ec_edwards_mult_and_add_from_msb(&curve, &pt1, &pt2, data->scalar_a, data->scalar_b, &res);
+
+    cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
+    print__debug(tmp, 8);
+    print__debug(data->res_x, 8);
+    assert(memcmp(tmp, data->res_x, 32) == 0);
+    cc3xx_lowlevel_pka_read_reg(res.y,tmp, 32);
+    assert(memcmp(tmp, data->res_y, 32) == 0);
+    
+
+cleanup:
+    cc3xx_lowlevel_ec_free_point(&res);
+    cc3xx_lowlevel_ec_uninit();
+    NRF_CRYPTOCELL->ENABLE = 0;
+    return rc;
+}
+
+
+void bits_from_lsb(cc3xx_pka_reg_id_t s, uint32_t *scalar){
+    uint8_t bit = 0x0;
+    cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
+    for(int j=0; j<32;j++){
+        uint8_t byte = j*8;
+        //go trough all bits
+        for(int i = 0; i < 8; i++){
+            bit = cc3xx_lowlevel_pka_test_bits_ui(s, byte+i, 1);
+            printf("%01lx",bit);
+        }
+    }
+    printf("\n");
+}
+
+void bits_from_msb(cc3xx_pka_reg_id_t s, uint32_t *scalar){
+    uint8_t bit = 0x0;
+    cc3xx_lowlevel_pka_write_reg_swap_endian(s, scalar, 32);
+    //trough 32 bytes
+    for(int j=0; j<32;j++){
+        uint8_t byte = j*8;
+        //go trough all bits
+        for(int i = 7; i >= 0; i--){
+            bit = cc3xx_lowlevel_pka_test_bits_ui(s, byte+i, 1);
+            printf("%01lx",bit);
+        }
+    }
+    printf("\n");
+}
+
+void halfbytes_from_msb(cc3xx_pka_reg_id_t s, uint32_t *scalar){
+    uint32_t halfbyte = 0x0;
+    cc3xx_lowlevel_pka_write_reg_swap_endian(s, scalar, 32);
+    for(int i = 0; i < (256/4); i++){
+        halfbyte = cc3xx_lowlevel_pka_test_bits_ui(s, 0, 4);
+        printf("000%2x ", halfbyte);
+        cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 4, s);
+    }
+    printf("\n");
+}
+
+
+int simple_things(void)
+{
+    cc3xx_ec_curve_t curve = {};
+    init_edwards_25519(&curve);
+    int rc = 0;
+
+    uint32_t bits;
+    //uint32_t scalar = 13;
+    //0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ec
+    //0b0001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010100110111101111100111011110101000101111011110011100110101100101100000010010011000110001101001011100111101011101001111101100
+    //0xecd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010
+    //0b1110110011010011111101010101110000011010011000110001001001011000110101101001110011110111101000101101111011111001110111100001010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000
+    //least significant to most significant bit
+    //0011011111001011101011110011101001011000110001100100100000011010011010110011100111101111010001010111101110011111011110110010100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000
+    uint32_t lm1[8] = {0x5cf5d3ec,0x5812631a,0xa2f79cd6,0x14def9de, 0x00000000,0x00000000,0x00000000,0x10000000};
+    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
+    
+    cc3xx_lowlevel_pka_clear(s);
+    cc3xx_lowlevel_pka_write_reg(s, lm1, 32);
+    debug_read_and_print_reg(s, "l-1 : ");
+    /*for(int i = 15; i >= 0; i--){
+        //for(int j = 7; j >= 0; j--){
+            bits = cc3xx_lowlevel_pka_test_bits_ui(s, i, 1);
+            printf("%ith Bit: %08lx\n",16-i, bits);
+        //}
+        //cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 1, s);
+    }*/
+    /*
+    for(int j=0; j<32;j++){
+        uint8_t byte = j*8;
+        //go trough all bits
+        for(int i = 7; i >= 0; i--){
+        //for(int j = 7; j >= 0; j--){
+            bits = cc3xx_lowlevel_pka_test_bits_ui(s, byte+i, 1);
+            //printf("byte %d: %dth Bit: %01lx\n",byte, 8-i, bits);
+            printf("%01lx",bits);
+        //}
+        //cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 1, s);
+        }
+    }
+    */
+    printf("\n");
+    bits_from_lsb(s, lm1);
+    (void) bits;
+
+    /*
+    for(int i = 0; i <= 4; i++){
+        bits = cc3xx_lowlevel_pka_test_bits_ui(s, 0, i);
+        printf("First %d Bits: %08lx\n", i, bits);
+    }
+    cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 4, s);
+    for(int i = 0; i <= 4; i++){
+        bits = cc3xx_lowlevel_pka_test_bits_ui(s, 0, i);
+        printf("First %d Bits: %08lx\n", i, bits);
+    }*/
+
+    cc3xx_lowlevel_pka_clear(s);
+    cc3xx_lowlevel_pka_write_reg_swap_endian(s, lm1, 32);
+    debug_read_and_print_reg(s, "l-1 swap endian: ");
+    //bits_from_msb_to_lsb(s, lm1);
+    
+    /*
+    for(int i = 0; i <= 4; i++){
+        bits = cc3xx_lowlevel_pka_test_bits_ui(s, 0, i);
+        printf("First %d Bits: %08lx\n", i, bits);
+    }
+    cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 4, s);
+    for(int i = 0; i <= 4; i++){
+        bits = cc3xx_lowlevel_pka_test_bits_ui(s, 0, i);
+        printf("First %d Bits: %08lx\n", i, bits);
+    }
+    */
+    //per byte
+    /*
+    for(int j=0; j<32;j++){
+        uint8_t byte = j*8;
+        //go trough all bits
+        for(int i = 7; i >= 0; i--){
+        //for(int j = 7; j >= 0; j--){
+            bits = cc3xx_lowlevel_pka_test_bits_ui(s, byte+i, 1);
+            //printf("byte %d: %dth Bit: %01lx\n",byte, 8-i, bits);
+            printf("%01lx",bits);
+        //}
+        //cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 1, s);
+        }
+    }
+    */
+    printf("\n");
+    cc3xx_lowlevel_pka_clear(s);
+    bits_from_msb(s, lm1);
+    //bits_from_lsb(s, lm1);
+
+cleanup:
+    cc3xx_lowlevel_pka_free_reg(s);
+    cc3xx_lowlevel_ec_uninit();
+    NRF_CRYPTOCELL->ENABLE = 0;
+    return rc;
+}
+
+
+
 /*further test ideas
 decompression tests:
 - point that can't be decoded
@@ -787,7 +1029,14 @@ static void ecc_edwards_tests_run(struct test_result_t *ret)
     TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_l) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_l_minus_one) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_l_plus_one) == 0, "Point decompression did not succeed");
+
+    TEST_ASSERT(cc3xx_test_ecc_edw_mult_and_add(&twenty_G_plus_fifty_G_ma) == 0, "Point decompression did not succeed");
+    TEST_ASSERT(cc3xx_test_ecc_edw_mult_and_add_from_msb(&twenty_G_plus_fifty_G_ma) == 0, "Point decompression did not succeed");
+
+    
     printf("SCALAR MULT TESTS PASSED\n\n");
+
+    simple_things();
 
     ret->val = TEST_PASSED;
     return;
