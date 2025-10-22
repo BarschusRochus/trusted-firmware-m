@@ -623,7 +623,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_double_and_add(cc3xx_ec_curve_
     return 0;
 }
 
-cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_daa(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p,
                                                      uint32_t *scalar,
                                                      cc3xx_ec_point_affine *res)
@@ -828,7 +828,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_slower(cc3xx_ec_curve_t *curv
     return 0;
 }
 
-cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_daa(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p1,
                                                      cc3xx_ec_point_affine *p2,
                                                      uint32_t *scalar_a,
@@ -905,6 +905,182 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_ec_free_extended_point(&tmp);
     cc3xx_lowlevel_ec_free_extended_point(&res_ext);
     cc3xx_lowlevel_ec_free_extended_point(&p2_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&p1_ext);
+    cc3xx_lowlevel_pka_free_reg(b);
+    cc3xx_lowlevel_pka_free_reg(a);
+
+    return 0;
+}
+
+
+void calculate_table(cc3xx_ec_curve_t *curve, cc3xx_ec_point_extended *p, cc3xx_ec_point_extended_data *table){
+
+    int table_len = 16; //hardcoded for 4 bit window
+    memcpy(&table[0], &edwards_extended_neutral_element_data, sizeof(cc3xx_ec_point_extended_data)); //table[0] = 0
+    cc3xx_lowlevel_ec_extended_point_to_data(&table[1], p); //table[1] = P
+
+    //get a point to do calculation with
+    cc3xx_ec_point_extended tmp = cc3xx_lowlevel_ec_allocate_extended_point();
+    cc3xx_lowlevel_ec_copy_extended_point(p, &tmp);
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false,CC3XX_PKA_REG_NP);
+    for(int i=2; i<table_len; i++){
+        //tmp = tmp + p
+        cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &tmp, p, &tmp);
+        //table[i] = tmp
+        cc3xx_lowlevel_ec_extended_point_to_data(&table[i], &tmp);
+    }
+    cc3xx_lowlevel_ec_free_extended_point(&tmp);
+
+}
+
+
+//cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_4_bit_window(cc3xx_ec_curve_t *curve,
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
+                                                     cc3xx_ec_point_affine *p,
+                                                     uint32_t *scalar,
+                                                     cc3xx_ec_point_affine *res)
+{
+
+    /*
+    4 bit window method
+    - build a table that contains the point to mult from 0*p till 15*p (2^4-1 = 15)
+    - handle the scalar in 4 bit chunks: interpret 4 bit as one value (0-15)
+        - per 4 bit double the result 4 times, add value*point, obtain that from table
+        - potentially create that vector first
+        - e.g. scalar 0b11101100 = 0xec -> 000e 000c
+    R = 0
+    for i in 255 till 0, where 255 is the most significant bit of the scalar s
+      R = R + R
+      if i % 4 == 0:
+        R = R + table[s[i]]
+    */
+    cc3xx_lowlevel_pka_unmap_physical_registers();
+    //scalar to register
+    //must be done modulo l
+    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
+    //printf("Wrote scalar\n");
+    //given point to extended
+    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
+    cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
+
+    cc3xx_ec_point_extended_data table[16];
+    calculate_table(curve, &p_ext, table);
+    //printf("Calculated table\n");
+    //there is no use for p from here on, use as adder below
+
+    //R
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_neutral_point();
+    
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+    
+    uint32_t amount_bits = curve->modulus_size * 8;
+    int i = amount_bits-1;
+    uint32_t halfbyte = 0x0;
+    (void) halfbyte; //compiler whines that it ain't used
+    while(i >= 0){ 
+        //R = R + R
+        cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &res_ext, &res_ext);
+        
+        if(i % 4 == 0){ //every fourth bit
+            //take the most significant four bit as value
+            halfbyte = cc3xx_lowlevel_pka_test_bits_ui(s, i, 4);
+            //printf("i: %d, halfbyte: %lx \n",i, halfbyte);
+            
+            //read the appropriate point from the table
+            cc3xx_lowlevel_ec_extended_point_from_data(&table[halfbyte], &p_ext);
+            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res_ext, &p_ext, &res_ext);
+        }
+        //debug_read_and_print_reg(res_ext.x, "X: ");
+        i--;
+    }
+    
+
+    cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
+
+    cc3xx_lowlevel_ec_free_extended_point(&res_ext);
+    cc3xx_lowlevel_ec_free_extended_point(&p_ext);
+    cc3xx_lowlevel_pka_free_reg(s);
+
+    return 0;
+}
+
+
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
+                                                     cc3xx_ec_point_affine *p1,
+                                                     cc3xx_ec_point_affine *p2,
+                                                     uint32_t *scalar_a,
+                                                     uint32_t *scalar_b,
+                                                     cc3xx_ec_point_affine *res)
+{
+
+    //calculate a*p1 + b*p2 in one go using 4bit window method for mult
+    /*
+    calc table p1
+    calc table p2
+    res = 0
+    tmp;
+    for i in 255 downto 0: //from msb to lsb
+        res = res + res
+        if(i%4 == 0)
+            if s1[i] == 1: res = res + table[p1]
+            if s2[i] == 1: res = res + table[p2]
+    return res
+
+    */
+    cc3xx_lowlevel_pka_unmap_physical_registers();
+    //scalar to register
+    //must be done modulo l - missing here todo
+    cc3xx_pka_reg_id_t a = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_pka_reg_id_t b = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_lowlevel_pka_write_reg(a, scalar_a, 32);
+    cc3xx_lowlevel_pka_write_reg(b, scalar_b, 32);
+    
+    //given points to extended
+    cc3xx_ec_point_extended p1_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
+    cc3xx_lowlevel_ec_affine_to_extended(curve, p1, &p1_ext);
+    cc3xx_ec_point_extended p2_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
+    cc3xx_lowlevel_ec_affine_to_extended(curve, p2, &p2_ext);
+
+    cc3xx_ec_point_extended_data table_p1[16];
+    cc3xx_ec_point_extended_data table_p2[16];
+    calculate_table(curve, &p1_ext, table_p1);
+    calculate_table(curve, &p2_ext, table_p2);
+
+    //only keep p1 as adder below
+    cc3xx_lowlevel_ec_free_extended_point(&p2_ext);
+
+    cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_neutral_point();
+    
+    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+    cc3xx_lowlevel_pka_unmap_physical_registers();
+
+    uint32_t amount_bits = curve->modulus_size * 8;
+    int i = amount_bits-1;
+    uint32_t halfbyte = 0x0;
+    (void) halfbyte; //compiler whines that it ain't used
+
+    while(i >= 0){ 
+        //R = R + R
+        cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &res_ext, &res_ext);
+        if(i % 4 == 0){ //every fourth bit
+            //R = R + table_p1
+            halfbyte = cc3xx_lowlevel_pka_test_bits_ui(a, i, 4);
+            cc3xx_lowlevel_ec_extended_point_from_data(&table_p1[halfbyte], &p1_ext);
+            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res_ext, &p1_ext, &res_ext);
+
+            //R = R + table_p2
+            halfbyte = cc3xx_lowlevel_pka_test_bits_ui(b, i, 4);
+            cc3xx_lowlevel_ec_extended_point_from_data(&table_p2[halfbyte], &p1_ext);
+            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res_ext, &p1_ext, &res_ext);
+        }
+        i--;
+    }
+    
+
+    cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
+
+    cc3xx_lowlevel_ec_free_extended_point(&res_ext);
     cc3xx_lowlevel_ec_free_extended_point(&p1_ext);
     cc3xx_lowlevel_pka_free_reg(b);
     cc3xx_lowlevel_pka_free_reg(a);

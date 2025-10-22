@@ -769,6 +769,7 @@ int cc3xx_test_ecc_edw_mult_and_add(
     cc3xx_ec_point_affine res = cc3xx_lowlevel_ec_allocate_point();
     printf("Entering mult and add\n");
     cc3xx_lowlevel_ec_edwards_mult_and_add(&curve, &pt1, &pt2, data->scalar_a, data->scalar_b, &res);
+    //cc3xx_lowlevel_ec_edwards_mult_and_add_four_bit_window(&curve, &pt1, &pt2, data->scalar_a, data->scalar_b, &res);
 
     cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
     print__debug(tmp, 8);
@@ -823,6 +824,61 @@ cleanup:
 }
 
 
+int cc3xx_test_ecc_edw_scalar_mult_window(
+                        cc3xx_ec_edw_scalar_mult_test_t *data){
+
+    int rc = 0;
+    uint32_t tmp[8]; //to read values from reg
+    printf("Window multiplication - ");
+    printf("%s\n", data->label);
+     
+    NRF_CRYPTOCELL->ENABLE = 1;
+    cc3xx_lowlevel_init();
+
+    cc3xx_ec_curve_t curve = {};
+    cc3xx_lowlevel_ec_init(CC3XX_EC_CURVE_ED25519, &curve);
+
+    cc3xx_ec_point_affine p = cc3xx_lowlevel_ec_allocate_point();
+    cc3xx_lowlevel_pka_write_reg(p.x, data->p_x, 32);
+    cc3xx_lowlevel_pka_write_reg(p.y, data->p_y, 32);
+
+    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
+    cc3xx_lowlevel_pka_write_reg(s, data->scalar, 32);
+
+    cc3xx_ec_point_affine res = cc3xx_lowlevel_ec_allocate_point();
+
+    //cc3xx_lowlevel_ec_edwards_scalar_mult_4_bit_window(&curve, &p, data->scalar, &res);
+    cc3xx_lowlevel_ec_edwards_scalar_mult(&curve, &p, data->scalar, &res);
+
+    
+    printf("calculated results:\n");
+    cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
+    print__debug(tmp, 8);
+    cc3xx_lowlevel_pka_read_reg(res.y,tmp, 32);
+    print__debug(tmp, 8);
+    
+    printf("expected results:\n");
+    print__debug(data->res_x, 8);
+    print__debug(data->res_y, 8);
+    
+
+
+    cc3xx_lowlevel_pka_read_reg(res.x,tmp, 32);
+    assert(memcmp(tmp, data->res_x, 32) == 0);
+    cc3xx_lowlevel_pka_read_reg(res.y,tmp, 32);
+    assert(memcmp(tmp, data->res_y, 32) == 0);
+    
+
+cleanup:
+    cc3xx_lowlevel_ec_free_point(&res);
+    cc3xx_lowlevel_pka_free_reg(s);
+    cc3xx_lowlevel_ec_free_point(&p);
+    cc3xx_lowlevel_ec_uninit();
+    NRF_CRYPTOCELL->ENABLE = 0;
+    return rc;
+}
+
+
 void bits_from_lsb(cc3xx_pka_reg_id_t s, uint32_t *scalar){
     uint8_t bit = 0x0;
     cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
@@ -852,13 +908,43 @@ void bits_from_msb(cc3xx_pka_reg_id_t s, uint32_t *scalar){
     printf("\n");
 }
 
-void halfbytes_from_msb(cc3xx_pka_reg_id_t s, uint32_t *scalar){
+void halfbytes_from_msB(cc3xx_pka_reg_id_t s, uint32_t *scalar){
     uint32_t halfbyte = 0x0;
     cc3xx_lowlevel_pka_write_reg_swap_endian(s, scalar, 32);
+    //cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
     for(int i = 0; i < (256/4); i++){
-        halfbyte = cc3xx_lowlevel_pka_test_bits_ui(s, 0, 4);
-        printf("000%2x ", halfbyte);
+        halfbyte = cc3xx_lowlevel_pka_test_bits_ui(s, 4, 4);
+        printf("%1x ", halfbyte);
         cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 4, s);
+    }
+    printf("\n");
+}
+
+void bytes_from_msB(cc3xx_pka_reg_id_t s, uint32_t *scalar){
+    uint32_t byte = 0x0;
+    cc3xx_lowlevel_pka_write_reg_swap_endian(s, scalar, 32);
+    //cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
+    for(int i = 0; i < 32; i++){
+        uint8_t bytestart = i*8;
+        byte = cc3xx_lowlevel_pka_test_bits_ui(s, bytestart+4, 4);
+        printf("%1lx", byte);
+        byte = cc3xx_lowlevel_pka_test_bits_ui(s, bytestart, 4);
+        printf("%1lx ", byte);
+        //if(i%8 == 0) cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 8, s);
+    }
+    printf("\n");
+}
+
+void bytes_from_msB_anders(cc3xx_pka_reg_id_t s, uint32_t *scalar){
+    uint32_t byte = 0x0;
+    cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
+    //cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
+    for(int i = 255; i >= 0; i--){
+        if(i%4 == 0){
+            byte = cc3xx_lowlevel_pka_test_bits_ui(s, i, 4);
+            printf("%1lx", byte);
+        }
+        //if(i%8 == 0) cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 8, s);
     }
     printf("\n");
 }
@@ -956,6 +1042,40 @@ int simple_things(void)
     bits_from_msb(s, lm1);
     //bits_from_lsb(s, lm1);
 
+    cc3xx_lowlevel_pka_clear(s);
+    halfbytes_from_msB(s,lm1);
+    uint32_t scalar_70[8] = {0x46};
+    for(int i=0; i<8; i++) printf("%08lx ", scalar_70[i]);
+    printf("\n");
+    cc3xx_lowlevel_pka_write_reg(s, scalar_70, 32);
+    debug_read_and_print_reg(s, "70: ");
+    cc3xx_lowlevel_pka_write_reg_swap_endian(s, scalar_70, 32);
+    debug_read_and_print_reg(s, "70 se: ");
+    printf("from lsb: ");
+    bits_from_lsb(s, scalar_70);
+    printf("\n");
+    printf("from msb: ");
+    bits_from_msb(s, scalar_70);
+    cc3xx_lowlevel_pka_write_reg_swap_endian(s, scalar_70, 32);
+    printf("0,4: ");
+    bits = cc3xx_lowlevel_pka_test_bits_ui(s, 0, 4);
+    printf("%08lx \n", bits);
+    printf("4,4: ");
+    bits = cc3xx_lowlevel_pka_test_bits_ui(s, 4, 4);
+    printf("%08lx \n", bits);
+    debug_read_and_print_reg(s, "before shift: ");
+    cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 248, s);
+    debug_read_and_print_reg(s, "after shift: ");
+    printf("0,4: ");
+    bits = cc3xx_lowlevel_pka_test_bits_ui(s, 0, 4);
+    printf("%08lx \n", bits);
+    printf("4,4: ");
+    bits = cc3xx_lowlevel_pka_test_bits_ui(s, 4, 4);
+    printf("%08lx \n", bits);
+    bytes_from_msB(s, scalar_70);
+    bytes_from_msB_anders(s, scalar_70);
+    
+
 cleanup:
     cc3xx_lowlevel_pka_free_reg(s);
     cc3xx_lowlevel_ec_uninit();
@@ -1030,8 +1150,10 @@ static void ecc_edwards_tests_run(struct test_result_t *ret)
     TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_l_minus_one) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_generator(&gen_times_l_plus_one) == 0, "Point decompression did not succeed");
 
+    TEST_ASSERT(cc3xx_test_ecc_edw_scalar_mult_window(&gen_times_70) == 0, "Point decompression did not succeed");
+
+    //TEST_ASSERT(cc3xx_test_ecc_edw_mult_and_add_slow(&twenty_G_plus_fifty_G_ma) == 0, "Point decompression did not succeed");
     TEST_ASSERT(cc3xx_test_ecc_edw_mult_and_add(&twenty_G_plus_fifty_G_ma) == 0, "Point decompression did not succeed");
-    TEST_ASSERT(cc3xx_test_ecc_edw_mult_and_add_from_msb(&twenty_G_plus_fifty_G_ma) == 0, "Point decompression did not succeed");
 
     
     printf("SCALAR MULT TESTS PASSED\n\n");

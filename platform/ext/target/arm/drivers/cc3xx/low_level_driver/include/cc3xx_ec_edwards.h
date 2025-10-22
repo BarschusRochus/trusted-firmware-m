@@ -111,7 +111,18 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
                                                      uint32_t *scalar_a,
                                                      uint32_t *scalar_b,
                                                      cc3xx_ec_point_affine *res);
+                                                     
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_4_bit_window(cc3xx_ec_curve_t *curve,
+                                                     cc3xx_ec_point_affine *p,
+                                                     uint32_t *scalar,
+                                                     cc3xx_ec_point_affine *res);
 
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_four_bit_window(cc3xx_ec_curve_t *curve,
+                                                     cc3xx_ec_point_affine *p1,
+                                                     cc3xx_ec_point_affine *p2,
+                                                     uint32_t *scalar_a,
+                                                     uint32_t *scalar_b,
+                                                     cc3xx_ec_point_affine *res);
 #ifdef __cplusplus
 }
 #endif
