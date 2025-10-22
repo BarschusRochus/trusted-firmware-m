@@ -27,6 +27,37 @@ void debug_read_and_print_reg(cc3xx_pka_reg_id_t reg, char* label){
     print_debug(label, debug, debug_bytes);
 }
 
+//addition/doubling registers
+static cc3xx_pka_reg_id_t A;
+static cc3xx_pka_reg_id_t B;
+static cc3xx_pka_reg_id_t C;
+static cc3xx_pka_reg_id_t D;
+static cc3xx_pka_reg_id_t E;
+static cc3xx_pka_reg_id_t F;
+static cc3xx_pka_reg_id_t G;
+static cc3xx_pka_reg_id_t H;
+
+void allocate_addition_registers(void){
+    A = cc3xx_lowlevel_pka_allocate_reg();
+    B = cc3xx_lowlevel_pka_allocate_reg();
+    C = cc3xx_lowlevel_pka_allocate_reg();
+    D = cc3xx_lowlevel_pka_allocate_reg();
+    E = cc3xx_lowlevel_pka_allocate_reg();
+    F = cc3xx_lowlevel_pka_allocate_reg();
+    G = cc3xx_lowlevel_pka_allocate_reg();
+    H = cc3xx_lowlevel_pka_allocate_reg();
+}
+
+void free_addition_registers(void){
+    cc3xx_lowlevel_pka_free_reg(H);
+    cc3xx_lowlevel_pka_free_reg(G);
+    cc3xx_lowlevel_pka_free_reg(F);
+    cc3xx_lowlevel_pka_free_reg(E);
+    cc3xx_lowlevel_pka_free_reg(D);
+    cc3xx_lowlevel_pka_free_reg(C);
+    cc3xx_lowlevel_pka_free_reg(B);
+    cc3xx_lowlevel_pka_free_reg(A);    
+}
 
 /**
  * @brief Decompress a compressed edwards25519 point to x,y affine coordinates.
@@ -259,14 +290,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_extended_points(cc3xx_ec_curve_t *curv
     //map
     cc3xx_lowlevel_pka_unmap_physical_registers();
 
-    cc3xx_pka_reg_id_t A = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t B = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t C = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t D = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t E = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t F = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t G = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t H = cc3xx_lowlevel_pka_allocate_reg();
+    //allocate_addition_registers();
 
     //parameter k = 2d'; d' = -d/a (mod field modulus); see above
     //k = 0x2406d9dc56dffce7198e80f2eef3d13000e0149a8283b156ebd69b9426b2f159
@@ -315,14 +339,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_extended_points(cc3xx_ec_curve_t *curv
     //compute Z3 = F G
     cc3xx_lowlevel_pka_mod_mul(F, G, res->z);
 
-    cc3xx_lowlevel_pka_free_reg(H);
-    cc3xx_lowlevel_pka_free_reg(G);
-    cc3xx_lowlevel_pka_free_reg(F);
-    cc3xx_lowlevel_pka_free_reg(E);
-    cc3xx_lowlevel_pka_free_reg(D);
-    cc3xx_lowlevel_pka_free_reg(C);
-    cc3xx_lowlevel_pka_free_reg(B);
-    cc3xx_lowlevel_pka_free_reg(A);
+    //free_addition_registers();
 
     /*
     debug_read_and_print_reg(res->x, "X: ");
@@ -351,8 +368,11 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_add_points(cc3xx_ec_curve_t *curve,
     //affine to ext sets to order, resetting to field here
     cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
 
+    allocate_addition_registers();
+    cc3xx_lowlevel_pka_unmap_physical_registers(); //seems odd but some operations individuall allocate registers, thus free all before starting
     //Then, I can add them using Explicit formulas database: add-2008-hwcd-3
     cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &p_ext, &q_ext, &res_ext);
+    free_addition_registers();
 
     //Then, I can write them to q
     cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
@@ -370,28 +390,17 @@ void cc3xx_lowlevel_ec_edwards_double_extended_points(cc3xx_ec_curve_t *curve,
         cc3xx_ec_point_extended *p, cc3xx_ec_point_extended *res)
 {
     
+    //hyperelliptic.com -> EFD -> mdbl-2008-hwcd, assumes Z=1. 
+    //if that is not the case 
+    //use the dbl-2008-hwcd formula, same source, doesn't assume Z=1
     bool is_z_one = false;
     is_z_one = cc3xx_lowlevel_pka_are_equal_si(p->z, 0x1);
 
     //ensure that there is space
-    cc3xx_lowlevel_pka_unmap_physical_registers();
+    //cc3xx_lowlevel_pka_unmap_physical_registers();
 
-    cc3xx_pka_reg_id_t A = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t B = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t C; //only allocate if needed
-    cc3xx_pka_reg_id_t D = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t E = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t F; //only allocate if needed
-    cc3xx_pka_reg_id_t G = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_pka_reg_id_t H = cc3xx_lowlevel_pka_allocate_reg();
+    //allocate_addition_registers();
     
-    //hyperelliptic.com -> EFD -> mdbl-2008-hwcd, assumes Z=1. 
-    //if that is not the case 
-    //use the dbl-2008-hwcd formula, same source, doesn't assume Z=1
-    if(!is_z_one){
-         C = cc3xx_lowlevel_pka_allocate_reg();
-         F = cc3xx_lowlevel_pka_allocate_reg();
-    }
     cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
 
     //A = X1^2
@@ -451,16 +460,7 @@ void cc3xx_lowlevel_ec_edwards_double_extended_points(cc3xx_ec_curve_t *curve,
         cc3xx_lowlevel_pka_mod_mul(F, G, res->z);
     }
 
-    if(!is_z_one){
-         cc3xx_lowlevel_pka_free_reg(F);
-         cc3xx_lowlevel_pka_free_reg(C);
-    }
-    cc3xx_lowlevel_pka_free_reg(H);
-    cc3xx_lowlevel_pka_free_reg(G);
-    cc3xx_lowlevel_pka_free_reg(E);
-    cc3xx_lowlevel_pka_free_reg(D);
-    cc3xx_lowlevel_pka_free_reg(B);
-    cc3xx_lowlevel_pka_free_reg(A);
+    //free_addition_registers();
 
 }
 
@@ -474,7 +474,10 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_double_point(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
 
     cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
+    allocate_addition_registers();
+    cc3xx_lowlevel_pka_unmap_physical_registers(); //seems odd but some operations individuall allocate registers, thus free all before starting
     cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &p_ext, &res_ext);
+    free_addition_registers();
 
     cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
 
@@ -964,6 +967,8 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
     cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
     cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
 
+    allocate_addition_registers(); //table does additions
+    cc3xx_lowlevel_pka_unmap_physical_registers(); //seems odd but some operations individuall allocate registers, thus free all before starting
     cc3xx_ec_point_extended_data table[16];
     calculate_table(curve, &p_ext, table);
     //printf("Calculated table\n");
@@ -973,7 +978,6 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
     cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_neutral_point();
     
     cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
-    
     uint32_t amount_bits = curve->modulus_size * 8;
     int i = amount_bits-1;
     uint32_t halfbyte = 0x0;
@@ -994,11 +998,11 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
         //debug_read_and_print_reg(res_ext.x, "X: ");
         i--;
     }
-    
 
     cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
 
     cc3xx_lowlevel_ec_free_extended_point(&res_ext);
+    free_addition_registers();
     cc3xx_lowlevel_ec_free_extended_point(&p_ext);
     cc3xx_lowlevel_pka_free_reg(s);
 
@@ -1039,9 +1043,14 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
     //given points to extended
     cc3xx_ec_point_extended p1_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
     cc3xx_lowlevel_ec_affine_to_extended(curve, p1, &p1_ext);
+    
+    allocate_addition_registers(); //table build needs addition registers, do this here to be able to free p2 after table build
+    cc3xx_lowlevel_pka_unmap_physical_registers(); //seems odd but some operations individuall allocate registers, thus free all before starting
+    
     cc3xx_ec_point_extended p2_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
     cc3xx_lowlevel_ec_affine_to_extended(curve, p2, &p2_ext);
 
+    
     cc3xx_ec_point_extended_data table_p1[16];
     cc3xx_ec_point_extended_data table_p2[16];
     calculate_table(curve, &p1_ext, table_p1);
@@ -1081,6 +1090,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
 
     cc3xx_lowlevel_ec_free_extended_point(&res_ext);
+    free_addition_registers();
     cc3xx_lowlevel_ec_free_extended_point(&p1_ext);
     cc3xx_lowlevel_pka_free_reg(b);
     cc3xx_lowlevel_pka_free_reg(a);
