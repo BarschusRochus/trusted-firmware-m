@@ -1002,6 +1002,13 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_daa(cc3xx_ec_curve_t *curve,
 
 void calculate_table(cc3xx_ec_curve_t *curve, cc3xx_ec_point_extended *p, cc3xx_ec_point_extended_data *table){
 
+    //check if p is generator point, if so return pre-generated table
+    if( cc3xx_lowlevel_pka_are_equal(curve->generator.x, p->x) && cc3xx_lowlevel_pka_are_equal(curve->generator.y, p->y)) {
+        //printf("Generator point, ommitting table generation\n");
+        memcpy(table, table_g, 16*32*4); // 2^window_size * bytesize_coordinate * coordinate_count_extended_point
+        return;
+    }
+    
     int table_len = 16; //hardcoded for 4 bit window
     memcpy(&table[0], &edwards_extended_neutral_element_data, sizeof(cc3xx_ec_point_extended_data)); //table[0] = 0
     cc3xx_lowlevel_ec_extended_point_to_data(&table[1], p); //table[1] = P
@@ -1054,15 +1061,9 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
     allocate_addition_registers(); //table does additions
     cc3xx_lowlevel_pka_unmap_physical_registers(); //seems odd but some operations individuall allocate registers, thus free all before starting
     cc3xx_ec_point_extended_data table[16];
-    if((memcmp(&curve->generator.x, &p->x, 32) == 0) && (memcmp(&curve->generator.y, &p->y, 32) == 0) ){ //TODO: Warum macht das nicht die calculate table funktion?
-        //printf("Generator point, ommitting table generation\n");
-        memcpy(table, table_g, 16*32*4);
-    }else{
-        //printf("calculating table\n");
-        calculate_table(curve, &p_ext, table);
-    }
-    //printf("Calculated table\n");
-    //there is no use for p from here on, use as adder below
+    calculate_table(curve, &p_ext, table);
+    
+    //there is no use for p_ext from here on, use as adder below
 
     //R
     cc3xx_ec_point_extended res_ext = cc3xx_lowlevel_ec_allocate_extended_neutral_point();
@@ -1135,7 +1136,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_ec_affine_to_extended(curve, p1, &p1_ext);
     
     allocate_addition_registers(); //table build needs addition registers, do this here to be able to free p2 after table build
-    cc3xx_lowlevel_pka_unmap_physical_registers(); //seems odd but some operations individuall allocate registers, thus free all before starting
+    cc3xx_lowlevel_pka_unmap_physical_registers(); //seems odd but some operations individually allocate registers, thus free all before starting
     
     cc3xx_ec_point_extended p2_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
     cc3xx_lowlevel_ec_affine_to_extended(curve, p2, &p2_ext);
