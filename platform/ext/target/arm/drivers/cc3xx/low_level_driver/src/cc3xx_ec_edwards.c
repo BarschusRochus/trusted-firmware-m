@@ -1,5 +1,4 @@
 #include "cc3xx_ec_edwards.h"
-#include "cc3xx_aes.h"
 #include "cc3xx_ec.h"
 #include "cc3xx_ec_edw_extended_point.h"
 #include "cc3xx_error.h"
