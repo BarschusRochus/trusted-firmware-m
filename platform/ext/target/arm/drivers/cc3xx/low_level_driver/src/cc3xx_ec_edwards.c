@@ -708,18 +708,18 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_double_and_add(cc3xx_ec_curve_
 
     return 0;
 }
-
-cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_daa(cc3xx_ec_curve_t *curve,
+//daa-approach
+cc3xx_err_t _cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p,
                                                      uint32_t *scalar,
                                                      cc3xx_ec_point_affine *res)
 {
 
     //double and add with unconditional add as seen in c25519 library 
-    //don't know a proper name - constant time double and add?
+    //double and add always - daa
     //this is sidechannel resistant in so far as that it will take the same time for bit 0 and 1
     //it also constantly does 255 operations
-    //TODO: seek some sources before claiming that...
+    //TODO: seek some sources before claiming that - guess it is obvious given the while loop
     /*
     res = 0
     adder = p
@@ -742,13 +742,14 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_daa(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
     cc3xx_lowlevel_pka_reduce(s);
 
-    if(cc3xx_lowlevel_pka_are_equal_si(s, 0x1)){ //1*P = P
+    /*this would mean a way quicker calculation of s = 1 - as unlikely as that is*/
+    /*if(cc3xx_lowlevel_pka_are_equal_si(s, 0x1)){ //1*P = P
         cc3xx_lowlevel_pka_copy(p->x, res->x);
         cc3xx_lowlevel_pka_copy(p->y, res->y);
         
         cc3xx_lowlevel_pka_free_reg(s);
         return CC3XX_ERR_SUCCESS;   
-    }
+    }*/
 
     //TODO: if s == 0 % l return O ?
 
@@ -756,7 +757,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_daa(cc3xx_ec_curve_t *curve,
     cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);    
 
     //given point to extended
-    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
+    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();
     cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
 
     //mach mal ein allocate neutral point für diesen Fall
@@ -770,7 +771,9 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_daa(cc3xx_ec_curve_t *curve,
     cc3xx_ec_point_extended tmp = cc3xx_lowlevel_ec_allocate_extended_point();
     
     cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
-    
+    cc3xx_lowlevel_pka_unmap_physical_registers();
+    allocate_addition_registers();
+    cc3xx_lowlevel_pka_unmap_physical_registers();
     uint32_t amount_bits = curve->modulus_size * 8;
     uint32_t i = 0;
     uint32_t bit = 0x0;
@@ -795,6 +798,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_daa(cc3xx_ec_curve_t *curve,
 
     cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
 
+    free_addition_registers();
     cc3xx_lowlevel_ec_free_extended_point(&tmp);
     cc3xx_lowlevel_ec_free_extended_point(&adder_ext);
     cc3xx_lowlevel_ec_free_extended_point(&res_ext);
@@ -913,8 +917,8 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_slower(cc3xx_ec_curve_t *curv
 
     return 0;
 }
-
-cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_daa(cc3xx_ec_curve_t *curve,
+//daa-approach
+cc3xx_err_t _cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p1,
                                                      cc3xx_ec_point_affine *p2,
                                                      uint32_t *scalar_a,
@@ -956,8 +960,8 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_daa(cc3xx_ec_curve_t *curve,
     
     cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
     cc3xx_lowlevel_pka_unmap_physical_registers();
-    //uint32_t amount_bits = curve->modulus_size * 8;
-    
+    allocate_addition_registers();
+    cc3xx_lowlevel_pka_unmap_physical_registers();
     uint32_t bit1 = 0x0;
     uint32_t bit2 = 0x0;
     //32 bytes
@@ -987,7 +991,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_daa(cc3xx_ec_curve_t *curve,
     
 
     cc3xx_lowlevel_ec_extended_to_affine(curve, &res_ext, res);
-
+    free_addition_registers();
     cc3xx_lowlevel_ec_free_extended_point(&tmp);
     cc3xx_lowlevel_ec_free_extended_point(&res_ext);
     cc3xx_lowlevel_ec_free_extended_point(&p2_ext);
@@ -1027,7 +1031,7 @@ void calculate_table(cc3xx_ec_curve_t *curve, cc3xx_ec_point_extended *p, cc3xx_
 }
 
 
-//cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_4_bit_window(cc3xx_ec_curve_t *curve,
+//4-bit-window-variant
 cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p,
                                                      uint32_t *scalar,
@@ -1099,7 +1103,7 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
     return 0;
 }
 
-
+//4-bit-window-variant
 cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p1,
                                                      cc3xx_ec_point_affine *p2,
