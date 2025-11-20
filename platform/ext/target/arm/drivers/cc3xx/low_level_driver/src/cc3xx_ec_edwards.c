@@ -27,7 +27,7 @@ void debug_read_and_print_reg(cc3xx_pka_reg_id_t reg, char* label){
     print_debug(label, debug, debug_bytes);
 }
 
-static cc3xx_ec_point_extended_data table_g[16] = {
+static const cc3xx_ec_point_extended_data table_g[16] = {
 {
  .x={0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000 ,0x00000000}, 
  .y={0x00000001, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000 ,0x00000000}, 
@@ -1006,11 +1006,14 @@ cc3xx_err_t _cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
 void calculate_table(cc3xx_ec_curve_t *curve, cc3xx_ec_point_extended *p, cc3xx_ec_point_extended_data *table){
 
     //check if p is generator point, if so return pre-generated table
+    
     if( cc3xx_lowlevel_pka_are_equal(curve->generator.x, p->x) && cc3xx_lowlevel_pka_are_equal(curve->generator.y, p->y)) {
         //printf("Generator point, ommitting table generation\n");
         memcpy(table, table_g, 16*32*4); // 2^window_size * bytesize_coordinate * coordinate_count_extended_point
         return;
     }
+    //avoid compile warnings if pregenerated table is not used
+    //(void) table_g;
     
     int table_len = 16; //hardcoded for 4 bit window
     memcpy(&table[0], &edwards_extended_neutral_element_data, sizeof(cc3xx_ec_point_extended_data)); //table[0] = 0
