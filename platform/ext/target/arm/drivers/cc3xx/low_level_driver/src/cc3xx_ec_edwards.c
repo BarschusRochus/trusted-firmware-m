@@ -27,6 +27,8 @@ void debug_read_and_print_reg(cc3xx_pka_reg_id_t reg, char* label){
     print_debug(label, debug, debug_bytes);
 }
 
+#ifdef USE_WINDOW
+#ifdef USE_PREGENERATED
 static const cc3xx_ec_point_extended_data table_g[16] = {
 {
  .x={0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000 ,0x00000000}, 
@@ -109,6 +111,8 @@ static const cc3xx_ec_point_extended_data table_g[16] = {
  .z={0xc9d90a24, 0x076d826c, 0x5be8c947, 0x9a679046, 0xa7300bd4, 0xca3509a0, 0x7f39f912, 0x533552e0},
  .t={0xfd6ea971, 0xfbcf5b37, 0x151d8146, 0x58e13da2, 0xdc3e2021, 0x72f06465, 0xcddb7d4f, 0x32a3f803}}
 };
+#endif//pregen
+#endif//window
 
 //addition/doubling registers
 static cc3xx_pka_reg_id_t A;
@@ -708,8 +712,9 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_double_and_add(cc3xx_ec_curve_
 
     return 0;
 }
+#ifdef USE_DAA
 //daa-approach
-cc3xx_err_t _cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p,
                                                      uint32_t *scalar,
                                                      cc3xx_ec_point_affine *res)
@@ -807,16 +812,7 @@ cc3xx_err_t _cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
 
     return 0;
 }
-
-
-cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_generator(cc3xx_ec_curve_t *curve,
-                                                     uint32_t *scalar,
-                                                     cc3xx_ec_point_affine *res)
-{
-    return(cc3xx_lowlevel_ec_edwards_scalar_mult(curve, &curve->generator, scalar, res));
-}
-
-
+#endif //USE_DAA
 
 cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_slower(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p1,
@@ -917,15 +913,16 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add_slower(cc3xx_ec_curve_t *curv
 
     return 0;
 }
+
+#ifdef USE_DAA
 //daa-approach
-cc3xx_err_t _cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
                                                      cc3xx_ec_point_affine *p1,
                                                      cc3xx_ec_point_affine *p2,
                                                      uint32_t *scalar_a,
                                                      uint32_t *scalar_b,
                                                      cc3xx_ec_point_affine *res)
 {
-
     //calculate a*p1 + b*p2 in one go
     /*
     res = 0
@@ -1001,8 +998,9 @@ cc3xx_err_t _cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
 
     return 0;
 }
+#endif //USE_DAA
 
-
+#ifdef USE_WINDOW
 void calculate_table(cc3xx_ec_curve_t *curve, cc3xx_ec_point_extended *p, cc3xx_ec_point_extended_data *table){
 
     //check if p is generator point, if so return pre-generated table
@@ -1011,13 +1009,18 @@ void calculate_table(cc3xx_ec_curve_t *curve, cc3xx_ec_point_extended *p, cc3xx_
     Implementing that with cc3xx_ec_point_extended_data **table_addr as parameter and setting that with
     *table_addr = (cc3xx_ec_point_extended_data *) &table_g did not work on a quick try, however.
     I assume some memory violation since the tests just did not return...or maybe I just made a mistake.*/
+    #ifdef USE_PREGENERATED
     if( cc3xx_lowlevel_pka_are_equal(curve->generator.x, p->x) && cc3xx_lowlevel_pka_are_equal(curve->generator.y, p->y)) {
+        printf("table pregen\n");
         //printf("Generator point, ommitting table generation\n");
         memcpy(table, table_g, 16*32*4); // 2^window_size * bytesize_coordinate * coordinate_count_extended_point
         return;
     }
+    #else
     //avoid compile warnings if pregenerated table is not used
+    printf("no table pregen\n");
     //(void) table_g;
+    #endif
     
     int table_len = 16; //hardcoded for 4 bit window
     memcpy(&table[0], &edwards_extended_neutral_element_data, sizeof(cc3xx_ec_point_extended_data)); //table[0] = 0
@@ -1036,7 +1039,6 @@ void calculate_table(cc3xx_ec_curve_t *curve, cc3xx_ec_point_extended *p, cc3xx_
     cc3xx_lowlevel_ec_free_extended_point(&tmp);
 
 }
-
 
 //4-bit-window-variant
 cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
@@ -1118,7 +1120,6 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
                                                      uint32_t *scalar_b,
                                                      cc3xx_ec_point_affine *res)
 {
-
     //calculate a*p1 + b*p2 in one go using 4bit window method for mult
     /*
     calc table p1
@@ -1198,113 +1199,13 @@ cc3xx_err_t cc3xx_lowlevel_ec_edwards_mult_and_add(cc3xx_ec_curve_t *curve,
 
     return 0;
 }
+#endif
 
-/*
-cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult(cc3xx_ec_curve_t *curve,
-                                                     cc3xx_ec_point_affine *p,
+
+cc3xx_err_t cc3xx_lowlevel_ec_edwards_scalar_mult_generator(cc3xx_ec_curve_t *curve,
                                                      uint32_t *scalar,
                                                      cc3xx_ec_point_affine *res)
 {
-
-    //montgommery_ladder
-    //constant operation time
-    //but I guess it only works with montgommery curves and matching addition laws
-    //res0 = 0
-    //res1 = P
-    //bits = bits_in_scalar_beginning_with_least_significant_bit(scalar)
-    //for bit in bits:
-    //  if bit == 0:
-    //    res1 = res0 + res1
-    //    res0 = res0*2
-    //  else:
-    //    res0 = res0 + res1
-    //    res1 = res1 * 2
-    //return res0
-
-    
-
-    //scalar to register
-    //must be done modulo l
-    cc3xx_pka_reg_id_t s = cc3xx_lowlevel_pka_allocate_reg();
-    cc3xx_lowlevel_pka_write_reg(s, scalar, 32);
-    cc3xx_lowlevel_pka_set_modulus(curve->order, false, CC3XX_PKA_REG_NP);    
-    cc3xx_lowlevel_pka_reduce(s);
-
-    //doing this makes the *1 visible as it will take way less operations then 
-    //other scalar multiplications
-    
-    if(cc3xx_lowlevel_pka_are_equal_si(s, 0x1)){ //1*P = P
-        cc3xx_lowlevel_pka_copy(p->x, res->x);
-        cc3xx_lowlevel_pka_copy(p->y, res->y);
-        
-        cc3xx_lowlevel_pka_free_reg(s);
-        return CC3XX_ERR_SUCCESS;   
-    }
-    
-    //TODO: if s == 0 % l return O ?
-
-
-    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);    
-
-    //given point to extended
-    cc3xx_ec_point_extended p_ext = cc3xx_lowlevel_ec_allocate_extended_point();    
-    cc3xx_lowlevel_ec_affine_to_extended(curve, p, &p_ext);
-
-    //mach mal ein allocate neutral point für diesen Fall
-    cc3xx_ec_point_extended res0 = cc3xx_lowlevel_ec_allocate_extended_point();
-    cc3xx_lowlevel_pka_clear(res0.x);
-    cc3xx_lowlevel_pka_clear(res0.y);
-    cc3xx_lowlevel_pka_clear(res0.z);
-    cc3xx_lowlevel_pka_clear(res0.t);
-    cc3xx_lowlevel_pka_add_si(res0.y, 0x1, res0.y);
-    cc3xx_lowlevel_pka_add_si(res0.z, 0x1, res0.z);
-
-    //adder
-    cc3xx_ec_point_extended res1 = cc3xx_lowlevel_ec_allocate_extended_point();
-    cc3xx_lowlevel_ec_copy_extended_point(&p_ext, &res1);
-    
-    
-    cc3xx_lowlevel_pka_set_modulus(curve->field_modulus, false, CC3XX_PKA_REG_NP);
-    
-
-    uint8_t bit = 0x0;
-    size_t bitlen = curve->modulus_size * 8;
-    printf("bitlen: %d\n", bitlen);
-    size_t bitpos = bitlen;
-    char bits_as_seen_by_algo[bitlen+1];
-    bits_as_seen_by_algo[bitlen] = '\0';
-    uint32_t round = 0;
-    while(bitpos > 0){//while s > 0
-        //get least significant bit
-        bit = cc3xx_lowlevel_pka_test_bits_ui(s, 0, 1);
-        //shift right by one to get next bit next round
-        cc3xx_lowlevel_pka_shift_right_fill_0_ui(s, 0x1, s); //s--
-        //debug
-        sprintf(&bits_as_seen_by_algo[round], "%d", bit & 0x1);
-        printf("Round: %ld, Bit: %d, bitpos: %d\n", round, bit, bitpos);
-        //reduce bitpos to eventually stop the loop
-        bitpos--;
-        
-        if(bit == 0x0){
-            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res0, &res1, &res1);
-            cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &res0, &res0);
-        }else{
-            cc3xx_lowlevel_ec_edwards_add_extended_points(curve, &res0, &res1, &res0);
-            cc3xx_lowlevel_ec_edwards_double_extended_points(curve, &res1, &res1);
-        }
-        round++;
-    }
-
-    printf("Rounds done: %ld \nBits seen:%s\n", round, bits_as_seen_by_algo);
-    
-
-    cc3xx_lowlevel_ec_extended_to_affine(curve, &res0, res);
-
-    cc3xx_lowlevel_ec_free_extended_point(&res1);
-    cc3xx_lowlevel_ec_free_extended_point(&res0);
-    cc3xx_lowlevel_ec_free_extended_point(&p_ext);
-    cc3xx_lowlevel_pka_free_reg(s);
-
-    return 0;
+    return(cc3xx_lowlevel_ec_edwards_scalar_mult(curve, &curve->generator, scalar, res));
 }
-*/
+
