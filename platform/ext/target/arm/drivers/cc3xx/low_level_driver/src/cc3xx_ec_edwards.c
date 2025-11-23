@@ -1011,15 +1011,10 @@ void calculate_table(cc3xx_ec_curve_t *curve, cc3xx_ec_point_extended *p, cc3xx_
     I assume some memory violation since the tests just did not return...or maybe I just made a mistake.*/
     #ifdef USE_PREGENERATED
     if( cc3xx_lowlevel_pka_are_equal(curve->generator.x, p->x) && cc3xx_lowlevel_pka_are_equal(curve->generator.y, p->y)) {
-        printf("table pregen\n");
         //printf("Generator point, ommitting table generation\n");
         memcpy(table, table_g, 16*32*4); // 2^window_size * bytesize_coordinate * coordinate_count_extended_point
         return;
     }
-    #else
-    //avoid compile warnings if pregenerated table is not used
-    printf("no table pregen\n");
-    //(void) table_g;
     #endif
     
     int table_len = 16; //hardcoded for 4 bit window
