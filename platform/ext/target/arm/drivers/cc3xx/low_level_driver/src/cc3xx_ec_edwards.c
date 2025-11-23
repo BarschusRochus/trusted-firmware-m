@@ -1007,6 +1007,10 @@ void calculate_table(cc3xx_ec_curve_t *curve, cc3xx_ec_point_extended *p, cc3xx_
 
     //check if p is generator point, if so return pre-generated table
     
+    /*TODO: This could be a tad faster if instead of copying the table contents, the table pointer would just be changed to point to table_g.
+    Implementing that with cc3xx_ec_point_extended_data **table_addr as parameter and setting that with
+    *table_addr = (cc3xx_ec_point_extended_data *) &table_g did not work on a quick try, however.
+    I assume some memory violation since the tests just did not return...or maybe I just made a mistake.*/
     if( cc3xx_lowlevel_pka_are_equal(curve->generator.x, p->x) && cc3xx_lowlevel_pka_are_equal(curve->generator.y, p->y)) {
         //printf("Generator point, ommitting table generation\n");
         memcpy(table, table_g, 16*32*4); // 2^window_size * bytesize_coordinate * coordinate_count_extended_point

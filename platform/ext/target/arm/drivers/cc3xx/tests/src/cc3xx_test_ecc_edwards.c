@@ -951,6 +951,8 @@ void bytes_from_msB_anders(cc3xx_pka_reg_id_t s, uint32_t *scalar){
 }
 
 
+/*This is a set of tests to understand how to get bits out of the pka
+Likely it is very hard to get the idea when reading it again at some point.*/
 int simple_things(void)
 {
     cc3xx_ec_curve_t curve = {};
@@ -1263,8 +1265,6 @@ static void ecc_edwards_tests_run(struct test_result_t *ret)
 
     
     printf("SCALAR MULT TESTS PASSED\n\n");
-
-    simple_things();
 
     ret->val = TEST_PASSED;
     return;
